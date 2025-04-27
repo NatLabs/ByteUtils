@@ -1,3 +1,5 @@
+import Prim "mo:prim";
+
 import B "mo:base/Buffer";
 import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
@@ -88,8 +90,8 @@ module ByteUtils {
             Int64.fromNat64(nat64);
         };
 
-        public func toFloat64(bytes : Bytes) : Float {
-            let ?fx = FloatX.decode(bytes, #f64, #lsb) else Debug.trap("ByteUtils: failed to decode float64");
+        public func toFloat(bytes : Bytes) : Float {
+            let ?fx = FloatX.decode(bytes, #f64, #lsb) else Debug.trap("ByteUtils: failed to decode Float");
             FloatX.toFloat(fx);
         };
 
@@ -98,32 +100,18 @@ module ByteUtils {
         };
 
         public func fromNat16(n : Nat16) : [Nat8] {
-            [
-                Nat16.toNat8(n & 0xff),
-                Nat16.toNat8((n >> 8) & 0xff),
-            ];
+            let bytes = Prim.explodeNat16(n);
+            [bytes.1, bytes.0];
         };
 
         public func fromNat32(n : Nat32) : [Nat8] {
-            [
-                Nat8.fromNat(Nat32.toNat(n & 0xff)),
-                Nat8.fromNat(Nat32.toNat((n >> 8) & 0xff)),
-                Nat8.fromNat(Nat32.toNat((n >> 16) & 0xff)),
-                Nat8.fromNat(Nat32.toNat((n >> 24) & 0xff)),
-            ];
+            let bytes = Prim.explodeNat32(n);
+            [bytes.3, bytes.2, bytes.1, bytes.0];
         };
 
         public func fromNat64(n : Nat64) : [Nat8] {
-            [
-                Nat8.fromNat(Nat64.toNat(n & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 8) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 16) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 24) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 32) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 40) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 48) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 56) & 0xff)),
-            ];
+            let bytes = Prim.explodeNat64(n);
+            [bytes.7, bytes.6, bytes.5, bytes.4, bytes.3, bytes.2, bytes.1, bytes.0];
         };
 
         public func fromInt8(i : Int8) : [Nat8] {
@@ -145,7 +133,7 @@ module ByteUtils {
             fromNat64(nat64);
         };
 
-        public func fromFloat64(f : Float) : [Nat8] {
+        public func fromFloat(f : Float) : [Nat8] {
             let fx = FloatX.fromFloat(f, #f64);
             let buffer = B.Buffer<Nat8>(8);
 
@@ -207,8 +195,8 @@ module ByteUtils {
             Int64.fromNat64(nat64);
         };
 
-        public func toFloat64(bytes : Bytes) : Float {
-            let ?fx = FloatX.decode(bytes, #f64, #msb) else Debug.trap("ByteUtils: failed to decode float64");
+        public func toFloat(bytes : Bytes) : Float {
+            let ?fx = FloatX.decode(bytes, #f64, #msb) else Debug.trap("ByteUtils: failed to decode Float");
             FloatX.toFloat(fx);
         };
 
@@ -217,32 +205,18 @@ module ByteUtils {
         };
 
         public func fromNat16(n : Nat16) : [Nat8] {
-            [
-                Nat16.toNat8((n >> 8) & 0xff),
-                Nat16.toNat8(n & 0xff),
-            ];
+            let bytes = Prim.explodeNat16(n);
+            [bytes.0, bytes.1];
         };
 
         public func fromNat32(n : Nat32) : [Nat8] {
-            [
-                Nat8.fromNat(Nat32.toNat((n >> 24) & 0xff)),
-                Nat8.fromNat(Nat32.toNat((n >> 16) & 0xff)),
-                Nat8.fromNat(Nat32.toNat((n >> 8) & 0xff)),
-                Nat8.fromNat(Nat32.toNat(n & 0xff)),
-            ];
+            let bytes = Prim.explodeNat32(n);
+            [bytes.0, bytes.1, bytes.2, bytes.3];
         };
 
         public func fromNat64(n : Nat64) : [Nat8] {
-            [
-                Nat8.fromNat(Nat64.toNat((n >> 56) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 48) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 40) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 32) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 24) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 16) & 0xff)),
-                Nat8.fromNat(Nat64.toNat((n >> 8) & 0xff)),
-                Nat8.fromNat(Nat64.toNat(n & 0xff)),
-            ];
+            let bytes = Prim.explodeNat64(n);
+            [bytes.0, bytes.1, bytes.2, bytes.3, bytes.4, bytes.5, bytes.6, bytes.7];
         };
 
         public func fromInt8(i : Int8) : [Nat8] {
@@ -264,7 +238,7 @@ module ByteUtils {
             fromNat64(nat64);
         };
 
-        public func fromFloat64(f : Float) : [Nat8] {
+        public func fromFloat(f : Float) : [Nat8] {
             let fx = FloatX.fromFloat(f, #f64);
             let buffer = B.Buffer<Nat8>(8);
 
@@ -313,26 +287,29 @@ module ByteUtils {
             };
 
             public func addNat16(buffer : BufferLike<Nat8>, n : Nat16) {
-                buffer.add(Nat16.toNat8(n & 0xff));
-                buffer.add(Nat16.toNat8(n >> 8) & 0xff);
+                let bytes = Prim.explodeNat16(n);
+                buffer.add(bytes.1); // LSB
+                buffer.add(bytes.0); // MSB
             };
 
             public func addNat32(buffer : BufferLike<Nat8>, n : Nat32) {
-                buffer.add(Nat8.fromNat(Nat32.toNat(n & 0xff)));
-                buffer.add(Nat8.fromNat(Nat32.toNat((n >> 8) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat32.toNat((n >> 16) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat32.toNat((n >> 24) & 0xff)));
+                let bytes = Prim.explodeNat32(n);
+                buffer.add(bytes.3); // LSB
+                buffer.add(bytes.2);
+                buffer.add(bytes.1);
+                buffer.add(bytes.0); // MSB
             };
 
             public func addNat64(buffer : BufferLike<Nat8>, n : Nat64) {
-                buffer.add(Nat8.fromNat(Nat64.toNat(n & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 8) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 16) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 24) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 32) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 40) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 48) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 56) & 0xff)));
+                let bytes = Prim.explodeNat64(n);
+                buffer.add(bytes.7); // LSB
+                buffer.add(bytes.6);
+                buffer.add(bytes.5);
+                buffer.add(bytes.4);
+                buffer.add(bytes.3);
+                buffer.add(bytes.2);
+                buffer.add(bytes.1);
+                buffer.add(bytes.0); // MSB
             };
 
             public func addInt8(buffer : BufferLike<Nat8>, i : Int8) {
@@ -354,7 +331,7 @@ module ByteUtils {
                 addNat64(buffer, nat64);
             };
 
-            public func addFloat64(buffer : B.Buffer<Nat8>, f : Float) {
+            public func addFloat(buffer : B.Buffer<Nat8>, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
                 FloatX.encode(buffer, fx, #lsb);
             };
@@ -365,26 +342,29 @@ module ByteUtils {
             };
 
             public func writeNat16(buffer : BufferLike<Nat8>, offset : Nat, n : Nat16) {
-                buffer.put(offset, Nat16.toNat8(n & 0xff));
-                buffer.put(offset + 1, Nat16.toNat8((n >> 8) & 0xff));
+                let bytes = Prim.explodeNat16(n);
+                buffer.put(offset, bytes.1); // LSB
+                buffer.put(offset + 1, bytes.0); // MSB
             };
 
             public func writeNat32(buffer : BufferLike<Nat8>, offset : Nat, n : Nat32) {
-                buffer.put(offset, Nat8.fromNat(Nat32.toNat(n & 0xff)));
-                buffer.put(offset + 1, Nat8.fromNat(Nat32.toNat((n >> 8) & 0xff)));
-                buffer.put(offset + 2, Nat8.fromNat(Nat32.toNat((n >> 16) & 0xff)));
-                buffer.put(offset + 3, Nat8.fromNat(Nat32.toNat((n >> 24) & 0xff)));
+                let bytes = Prim.explodeNat32(n);
+                buffer.put(offset, bytes.3); // LSB
+                buffer.put(offset + 1, bytes.2);
+                buffer.put(offset + 2, bytes.1);
+                buffer.put(offset + 3, bytes.0); // MSB
             };
 
             public func writeNat64(buffer : BufferLike<Nat8>, offset : Nat, n : Nat64) {
-                buffer.put(offset, Nat8.fromNat(Nat64.toNat(n & 0xff)));
-                buffer.put(offset + 1, Nat8.fromNat(Nat64.toNat((n >> 8) & 0xff)));
-                buffer.put(offset + 2, Nat8.fromNat(Nat64.toNat((n >> 16) & 0xff)));
-                buffer.put(offset + 3, Nat8.fromNat(Nat64.toNat((n >> 24) & 0xff)));
-                buffer.put(offset + 4, Nat8.fromNat(Nat64.toNat((n >> 32) & 0xff)));
-                buffer.put(offset + 5, Nat8.fromNat(Nat64.toNat((n >> 40) & 0xff)));
-                buffer.put(offset + 6, Nat8.fromNat(Nat64.toNat((n >> 48) & 0xff)));
-                buffer.put(offset + 7, Nat8.fromNat(Nat64.toNat((n >> 56) & 0xff)));
+                let bytes = Prim.explodeNat64(n);
+                buffer.put(offset, bytes.7); // LSB
+                buffer.put(offset + 1, bytes.6);
+                buffer.put(offset + 2, bytes.5);
+                buffer.put(offset + 3, bytes.4);
+                buffer.put(offset + 4, bytes.3);
+                buffer.put(offset + 5, bytes.2);
+                buffer.put(offset + 6, bytes.1);
+                buffer.put(offset + 7, bytes.0); // MSB
             };
 
             public func writeInt8(buffer : BufferLike<Nat8>, offset : Nat, i : Int8) {
@@ -406,7 +386,7 @@ module ByteUtils {
                 writeNat64(buffer, offset, nat64);
             };
 
-            public func writeFloat64(buffer : BufferLike<Nat8>, offset : Nat, f : Float) {
+            public func writeFloat(buffer : BufferLike<Nat8>, offset : Nat, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
                 let tempBuffer = B.Buffer<Nat8>(8);
                 FloatX.encode(tempBuffer, fx, #lsb);
@@ -477,26 +457,29 @@ module ByteUtils {
             };
 
             public func addNat16(buffer : BufferLike<Nat8>, n : Nat16) {
-                buffer.add(Nat16.toNat8((n >> 8) & 0xff));
-                buffer.add(Nat16.toNat8(n & 0xff));
+                let bytes = Prim.explodeNat16(n);
+                buffer.add(bytes.0); // MSB
+                buffer.add(bytes.1); // LSB
             };
 
             public func addNat32(buffer : BufferLike<Nat8>, n : Nat32) {
-                buffer.add(Nat8.fromNat(Nat32.toNat((n >> 24) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat32.toNat((n >> 16) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat32.toNat((n >> 8) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat32.toNat(n & 0xff)));
+                let bytes = Prim.explodeNat32(n);
+                buffer.add(bytes.0); // MSB
+                buffer.add(bytes.1);
+                buffer.add(bytes.2);
+                buffer.add(bytes.3); // LSB
             };
 
             public func addNat64(buffer : BufferLike<Nat8>, n : Nat64) {
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 56) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 48) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 40) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 32) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 24) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 16) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat((n >> 8) & 0xff)));
-                buffer.add(Nat8.fromNat(Nat64.toNat(n & 0xff)));
+                let bytes = Prim.explodeNat64(n);
+                buffer.add(bytes.0); // MSB
+                buffer.add(bytes.1);
+                buffer.add(bytes.2);
+                buffer.add(bytes.3);
+                buffer.add(bytes.4);
+                buffer.add(bytes.5);
+                buffer.add(bytes.6);
+                buffer.add(bytes.7); // LSB
             };
 
             public func addInt8(buffer : BufferLike<Nat8>, i : Int8) {
@@ -518,7 +501,7 @@ module ByteUtils {
                 addNat64(buffer, nat64);
             };
 
-            public func addFloat64(buffer : B.Buffer<Nat8>, f : Float) {
+            public func addFloat(buffer : B.Buffer<Nat8>, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
                 FloatX.encode(buffer, fx, #msb);
             };
@@ -529,26 +512,29 @@ module ByteUtils {
             };
 
             public func writeNat16(buffer : BufferLike<Nat8>, offset : Nat, n : Nat16) {
-                buffer.put(offset, Nat16.toNat8((n >> 8) & 0xff));
-                buffer.put(offset + 1, Nat16.toNat8(n & 0xff));
+                let bytes = Prim.explodeNat16(n);
+                buffer.put(offset, bytes.0); // MSB
+                buffer.put(offset + 1, bytes.1); // LSB
             };
 
             public func writeNat32(buffer : BufferLike<Nat8>, offset : Nat, n : Nat32) {
-                buffer.put(offset, Nat8.fromNat(Nat32.toNat((n >> 24) & 0xff)));
-                buffer.put(offset + 1, Nat8.fromNat(Nat32.toNat((n >> 16) & 0xff)));
-                buffer.put(offset + 2, Nat8.fromNat(Nat32.toNat((n >> 8) & 0xff)));
-                buffer.put(offset + 3, Nat8.fromNat(Nat32.toNat(n & 0xff)));
+                let bytes = Prim.explodeNat32(n);
+                buffer.put(offset, bytes.0); // MSB
+                buffer.put(offset + 1, bytes.1);
+                buffer.put(offset + 2, bytes.2);
+                buffer.put(offset + 3, bytes.3); // LSB
             };
 
             public func writeNat64(buffer : BufferLike<Nat8>, offset : Nat, n : Nat64) {
-                buffer.put(offset, Nat8.fromNat(Nat64.toNat((n >> 56) & 0xff)));
-                buffer.put(offset + 1, Nat8.fromNat(Nat64.toNat((n >> 48) & 0xff)));
-                buffer.put(offset + 2, Nat8.fromNat(Nat64.toNat((n >> 40) & 0xff)));
-                buffer.put(offset + 3, Nat8.fromNat(Nat64.toNat((n >> 32) & 0xff)));
-                buffer.put(offset + 4, Nat8.fromNat(Nat64.toNat((n >> 24) & 0xff)));
-                buffer.put(offset + 5, Nat8.fromNat(Nat64.toNat((n >> 16) & 0xff)));
-                buffer.put(offset + 6, Nat8.fromNat(Nat64.toNat((n >> 8) & 0xff)));
-                buffer.put(offset + 7, Nat8.fromNat(Nat64.toNat(n & 0xff)));
+                let bytes = Prim.explodeNat64(n);
+                buffer.put(offset, bytes.0); // MSB
+                buffer.put(offset + 1, bytes.1);
+                buffer.put(offset + 2, bytes.2);
+                buffer.put(offset + 3, bytes.3);
+                buffer.put(offset + 4, bytes.4);
+                buffer.put(offset + 5, bytes.5);
+                buffer.put(offset + 6, bytes.6);
+                buffer.put(offset + 7, bytes.7); // LSB
             };
 
             public func writeInt8(buffer : BufferLike<Nat8>, offset : Nat, i : Int8) {
@@ -570,7 +556,7 @@ module ByteUtils {
                 writeNat64(buffer, offset, nat64);
             };
 
-            public func writeFloat64(buffer : B.Buffer<Nat8>, offset : Nat, f : Float) {
+            public func writeFloat(buffer : B.Buffer<Nat8>, offset : Nat, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
                 let tempBuffer = B.Buffer<Nat8>(8);
                 FloatX.encode(tempBuffer, fx, #msb);
