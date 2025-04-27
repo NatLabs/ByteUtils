@@ -145,18 +145,18 @@ suite(
         );
 
         test(
-            "Float round-trip conversion and byte pattern",
+            "Float64 round-trip conversion and byte pattern",
             func() {
                 // Test with value 1.0
                 // IEEE-754 encoding of 1.0 is 0x3FF0000000000000
                 let original : Float = 1.0;
-                let bytes = ByteUtils.LE.fromFloat(original);
+                let bytes = ByteUtils.LE.fromFloat64(original);
 
                 // Verify byte pattern - in little-endian, bytes are reversed
                 assert bytes == [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F];
 
                 // Verify round-trip conversion
-                let restored = ByteUtils.LE.toFloat(bytes.vals());
+                let restored = ByteUtils.LE.toFloat64(bytes.vals());
 
                 // For floating-point values, we need to account for small precision differences
                 let epsilon : Float = 0.0000001;
@@ -289,18 +289,18 @@ suite(
         );
 
         test(
-            "Float round-trip conversion and byte pattern",
+            "Float64 round-trip conversion and byte pattern",
             func() {
                 // Test with value 1.0
                 // IEEE-754 encoding of 1.0 is 0x3FF0000000000000
                 let original : Float = 1.0;
-                let bytes = ByteUtils.BE.fromFloat(original);
+                let bytes = ByteUtils.BE.fromFloat64(original);
 
                 // Verify byte pattern - in big-endian, bytes are in natural order
                 assert bytes == [0x3F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 
                 // Verify round-trip conversion
-                let restored = ByteUtils.BE.toFloat(bytes.vals());
+                let restored = ByteUtils.BE.toFloat64(bytes.vals());
 
                 // For floating-point values, we need to account for small precision differences
                 let epsilon : Float = 0.0000001;
@@ -583,8 +583,8 @@ suite(
                 assert restoredI8 == int8_zero;
 
                 let float_zero : Float = 0.0;
-                let bytesF = ByteUtils.LE.fromFloat(float_zero);
-                let restoredF = ByteUtils.LE.toFloat(bytesF.vals());
+                let bytesF = ByteUtils.LE.fromFloat64(float_zero);
+                let restoredF = ByteUtils.LE.toFloat64(bytesF.vals());
                 assert restoredF == float_zero;
             },
         );
@@ -645,21 +645,21 @@ suite(
 
                 // Error message:
                 //    0: 0xda4e - <unknown>!bigint_trap
-                //    1: 0xe1b9 - <unknown>!bigint_of_Float
+                //    1: 0xe1b9 - <unknown>!bigint_of_float64
                 //    2: 0x90ae - <unknown>!fromFloat
-                //    3: 0x474d - <unknown>!fromFloat
+                //    3: 0x474d - <unknown>!fromFloat64
                 //
                 //! Seems like a system limitation to convert the infinity value
 
-                // let bytesInf = ByteUtils.LE.fromFloat(float_inf);
+                // let bytesInf = ByteUtils.LE.fromFloat64(float_inf);
                 // // Debug.print(debug_show { bytesInf });
-                // let restoredInf = ByteUtils.LE.toFloat(bytesInf.vals());
+                // let restoredInf = ByteUtils.LE.toFloat64(bytesInf.vals());
 
                 // assert restoredInf == float_inf;
 
                 // let float_neg_inf : Float = -1.0 / 0.0;
-                // let bytesNegInf = ByteUtils.LE.fromFloat(float_neg_inf);
-                // let restoredNegInf = ByteUtils.LE.toFloat(bytesNegInf.vals());
+                // let bytesNegInf = ByteUtils.LE.fromFloat64(float_neg_inf);
+                // let restoredNegInf = ByteUtils.LE.toFloat64(bytesNegInf.vals());
 
                 // Debug.print(debug_show { restoredNegInf; float_neg_inf; bytesNegInf });
                 // assert restoredNegInf == float_neg_inf;
@@ -686,8 +686,8 @@ suite(
                 assert restoredI8 == int8_zero;
 
                 let float_zero : Float = 0.0;
-                let bytesF = ByteUtils.BE.fromFloat(float_zero);
-                let restoredF = ByteUtils.BE.toFloat(bytesF.vals());
+                let bytesF = ByteUtils.BE.fromFloat64(float_zero);
+                let restoredF = ByteUtils.BE.toFloat64(bytesF.vals());
                 assert restoredF == float_zero;
             },
         );
@@ -1212,7 +1212,7 @@ suite(
         //         ];
 
         //         for ((value, expectedBytes) in testVectors.vals()) {
-        //             let encoded = ByteUtils.LE.fromFloat(value);
+        //             let encoded = ByteUtils.LE.fromFloat64(value);
 
         //             assert encoded.size() == expectedBytes.size();
 
@@ -1220,7 +1220,7 @@ suite(
         //                 assert encoded[i] == expectedBytes[i];
         //             };
 
-        //             let restored = ByteUtils.LE.toFloat(encoded.vals());
+        //             let restored = ByteUtils.LE.toFloat64(encoded.vals());
 
         //             // For floating-point, use epsilon comparison
         //             let epsilon : Float = 1e-10;
@@ -1244,7 +1244,7 @@ suite(
         //         ];
 
         //         for ((value, expectedBytes) in testVectors.vals()) {
-        //             let encoded = ByteUtils.BE.fromFloat(value);
+        //             let encoded = ByteUtils.BE.fromFloat64(value);
 
         //             assert encoded.size() == expectedBytes.size();
 
@@ -1252,7 +1252,7 @@ suite(
         //                 assert encoded[i] == expectedBytes[i];
         //             };
 
-        //             let restored = ByteUtils.BE.toFloat(encoded.vals());
+        //             let restored = ByteUtils.BE.toFloat64(encoded.vals());
 
         //             // For floating-point, use epsilon comparison
         //             let epsilon : Float = 1e-10;
@@ -1346,7 +1346,7 @@ suite(
                 ByteUtils.Buffer.LE.addNat16(buf, 0x1234);
                 ByteUtils.Buffer.LE.addInt32(buf, -1234567890);
                 ByteUtils.Buffer.LE.addNat8(buf, 0xFF);
-                ByteUtils.Buffer.LE.addFloat(buf, 3.14159);
+                ByteUtils.Buffer.LE.addFloat64(buf, 3.14159);
 
                 // Verify buffer size
                 assert buf.size() == 15; // 2 + 4 + 1 + 8 bytes
@@ -1364,7 +1364,7 @@ suite(
 
                 // Convert raw bytes back to float and verify with epsilon
                 let float_bytes = Array.tabulate<Nat8>(8, func(i) = buf.get(7 + i));
-                let val4_float = ByteUtils.LE.toFloat(float_bytes.vals());
+                let val4_float = ByteUtils.LE.toFloat64(float_bytes.vals());
                 assert Float.abs(val4_float - 3.14159) < 1e-10;
             },
         );
