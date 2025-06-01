@@ -15,6 +15,11 @@ A comprehensive motoko library that provides high performance conversion utiliti
 
 ### Getting Started
 
+#### Installation
+```bash
+mops add byte-utils
+```
+
 #### Little Endian
 Can use `LittleEndian` or `LE`
 ```motoko
