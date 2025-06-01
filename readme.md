@@ -2,7 +2,7 @@
 
 A comprehensive motoko library that provides high performance conversion utilities for byte-level serialization and deserialization of motoko number types.
 
-> NOTE: This library only works with `moc` v0.14.9 or more
+> NOTE: This library requires `moc` v0.14.9 or higher.
 
 ### Key Features
 
@@ -14,6 +14,11 @@ A comprehensive motoko library that provides high performance conversion utiliti
 
 
 ### Getting Started
+
+#### Installation
+```bash
+mops add byte-utils
+```
 
 #### Little Endian
 Can use `LittleEndian` or `LE`

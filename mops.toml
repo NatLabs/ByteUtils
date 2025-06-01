@@ -1,11 +1,19 @@
+[package]
+name = "byte-utils"
+version = "0.0.1"
+license = "MIT"
+description = "A collection of utilities for byte manipulation and conversion."
+keywords = ["leb128", "endian"]
+repository = "https://github.com/NatLabs/ByteUtils"
+
 [dependencies]
-base = "0.10.2"
+base = "0.14.11"
 xtended-numbers = "0.4.0"
 
 [dev-dependencies]
 test = "2.1.1"
 bench = "1.0.0"
-fuzz = "0.1.0"
+fuzz = "1.0.0"
 augmented-btrees = "0.6.0"
 itertools = "0.2.2"
 
