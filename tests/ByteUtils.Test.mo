@@ -1,7 +1,6 @@
 import Buffer "mo:base/Buffer";
-import Debug "mo:base/Debug";
-import Blob "mo:base/Blob";
 import Array "mo:base/Array";
+import Debug "mo:base/Debug";
 import Iter "mo:base/Iter";
 import Nat8 "mo:base/Nat8";
 import Nat16 "mo:base/Nat16";
@@ -15,357 +14,227 @@ import Float "mo:base/Float";
 import { test; suite } "mo:test";
 
 import ByteUtils "../src";
+import Fuzz "mo:fuzz";
+
+func xorshift128plus(seed : Nat) : { next() : Nat } {
+    var state0 : Nat64 = Nat64.fromNat(seed);
+    var state1 : Nat64 = Nat64.fromNat(seed + 1);
+    if (state0 == 0) state0 := 1;
+    if (state1 == 0) state1 := 2;
+
+    {
+        next = func() : Nat {
+            var s1 = state0;
+            let s0 = state1;
+            state0 := s0;
+            s1 ^= s1 << 23 : Nat64;
+            state1 := s1 ^ s0 ^ (s1 >> 18 : Nat64) ^ (s0 >> 5 : Nat64);
+            Nat64.toNat(state1 +% s0); // Use wrapping addition
+        };
+    };
+};
+
+let fuzz = Fuzz.create(xorshift128plus(0xdeadbeef));
+let limit = 10_000;
+
+let input = Buffer.Buffer<Nat>(limit);
+
+for (i in Iter.range(0, limit - 1)) {
+    input.add(fuzz.nat.randomRange(0, 2 ** 64 - 1));
+};
+
+func round_trip_test_on_random_values<A>(
+    from : A -> [Nat8],
+    to : Iter.Iter<Nat8> -> A,
+    transform : (Nat) -> A,
+    is_equal : (A, A) -> Bool,
+    to_text : A -> Text,
+) {
+    for (i in Iter.range(0, limit - 1)) {
+        let original = transform(input.get(i));
+        let bytes = from(original);
+        let restored = to(bytes.vals());
+
+        if (not is_equal(restored, original)) {
+            Debug.print(debug_show ({ original = to_text(original); restored = to_text(restored); bytes }));
+            assert false;
+        };
+    };
+};
+
+func round_trip_endian(
+    Fns : ByteUtils.Functions
+) {
+    test(
+        "Nat",
+        func() {
+            for (i in Iter.range(0, 255)) {
+                let original : Nat8 = Nat8.fromNat(i);
+                let bytes = Fns.fromNat8(original);
+                let restored = Fns.toNat8(bytes.vals());
+                assert restored == original;
+            };
+
+        },
+    );
+
+    test(
+        "Nat16",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromNat16,
+                Fns.toNat16,
+                func(n : Nat) : Nat16 = Nat16.fromNat(n % 65_536),
+                Nat16.equal,
+                Nat16.toText,
+            );
+        },
+    );
+
+    test(
+        "Nat32",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromNat32,
+                Fns.toNat32,
+                func(n : Nat) : Nat32 = Nat32.fromNat(n % 4_294_967_296),
+                Nat32.equal,
+                Nat32.toText,
+            );
+        },
+    );
+
+    test(
+        "Nat64",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromNat64,
+                Fns.toNat64,
+                func(n : Nat) : Nat64 = Nat64.fromNat(n),
+                Nat64.equal,
+                Nat64.toText,
+            );
+        },
+    );
+
+    test(
+        "Int8",
+        func() {
+            for (i in Iter.range(0, 255)) {
+                let original : Int8 = Int8.fromInt(i - 128);
+                let bytes = Fns.fromInt8(original);
+                let restored = Fns.toInt8(bytes.vals());
+                assert restored == original;
+            };
+        },
+    );
+
+    test(
+        "Int16",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromInt16,
+                Fns.toInt16,
+                func(n : Nat) : Int16 = Int16.fromNat16(Nat16.fromNat(n % 65_536)),
+                Int16.equal,
+                Int16.toText,
+            );
+        },
+    );
+
+    test(
+        "Int32",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromInt32,
+                Fns.toInt32,
+                func(n : Nat) : Int32 = Int32.fromNat32(Nat32.fromNat(n % 4_294_967_296)),
+                Int32.equal,
+                Int32.toText,
+            );
+        },
+    );
+
+    test(
+        "Int64",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromInt64,
+                Fns.toInt64,
+                func(n : Nat) : Int64 = Int64.fromNat64(Nat64.fromNat(n)),
+                Int64.equal,
+                Int64.toText,
+            );
+        },
+    );
+
+    test(
+        "Float",
+        func() {
+            round_trip_test_on_random_values(
+                Fns.fromFloat,
+                Fns.toFloat,
+                Float.fromInt,
+                func(a : Float, b : Float) : Bool {
+                    // For floating-point values, we need to account for small precision differences
+                    let epsilon : Float = 0.0000001;
+                    Float.equalWithin(a, b, epsilon);
+                },
+                Float.toText,
+            );
+        },
+    )
+
+};
 
 suite(
-    "ByteUtils Little-Endian Conversions",
-    func() {
-        test(
-            "Nat8 round-trip conversion and byte pattern",
-            func() {
-                let original : Nat8 = 123;
-                let bytes = ByteUtils.LE.fromNat8(original);
-
-                // Verify byte pattern
-                assert bytes == [123];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toNat8(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Nat16 round-trip conversion and byte pattern",
-            func() {
-                // Test with a known value 0x1234 (4660 in decimal)
-                let original : Nat16 = 0x1234;
-                let bytes = ByteUtils.LE.fromNat16(original);
-
-                // Verify byte pattern - in little-endian, least significant byte comes first
-                assert bytes == [0x34, 0x12];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toNat16(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Nat32 round-trip conversion and byte pattern",
-            func() {
-                // Test with a known value 0x12345678
-                let original : Nat32 = 0x12345678;
-                let bytes = ByteUtils.LE.fromNat32(original);
-
-                // Verify byte pattern - in little-endian, bytes are reversed
-                assert bytes == [0x78, 0x56, 0x34, 0x12];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toNat32(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Nat64 round-trip conversion and byte pattern",
-            func() {
-                // Test with a known value 0x0102030405060708
-                let original : Nat64 = 0x0102030405060708;
-                let bytes = ByteUtils.LE.fromNat64(original);
-
-                // Verify byte pattern
-                assert bytes == [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toNat64(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int8 round-trip conversion and byte pattern",
-            func() {
-                let original : Int8 = -42;
-                let bytes = ByteUtils.LE.fromInt8(original);
-
-                // Verify byte pattern
-                assert bytes == [214]; // Two's complement of -42 is 214
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toInt8(bytes.vals());
-                assert restored == original;
-            },
-        );
-        test(
-            "Int16 round-trip conversion and byte pattern",
-            func() {
-                // Test with a negative value -12345
-                // Two's complement of -12345 is 53191 (0xCFC7)
-                let original : Int16 = -12345;
-                let bytes = ByteUtils.LE.fromInt16(original);
-
-                // Verify byte pattern
-                assert bytes == [0xC7, 0xCF];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toInt16(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int32 round-trip conversion and byte pattern",
-            func() {
-                let original : Int32 = -1234567890;
-                let bytes = ByteUtils.LE.fromInt32(original);
-
-                // Verify byte pattern - little-endian representation of -1234567890
-                assert bytes == [0x2E, 0xFD, 0x69, 0xB6];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toInt32(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int64 round-trip conversion and byte pattern",
-            func() {
-                let original : Int64 = -1234567890123456789;
-                let bytes = ByteUtils.LE.fromInt64(original);
-
-                // Verify byte pattern - little-endian representation of -1234567890123456789
-                Debug.print(debug_show bytes);
-                assert bytes == [0xeb, 0x7e, 0x16, 0x82, 0x0b, 0xef, 0xdd, 0xee];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toInt64(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Float64 round-trip conversion and byte pattern",
-            func() {
-                // Test with value 1.0
-                // IEEE-754 encoding of 1.0 is 0x3FF0000000000000
-                let original : Float = 1.0;
-                let bytes = ByteUtils.LE.fromFloat64(original);
-
-                // Verify byte pattern - in little-endian, bytes are reversed
-                assert bytes == [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.LE.toFloat64(bytes.vals());
-
-                // For floating-point values, we need to account for small precision differences
-                let epsilon : Float = 0.0000001;
-                assert Float.abs(restored - original) < epsilon;
-            },
-        );
-    },
+    "ByteUtils Little-Endian Round-Trip Conversions",
+    func() { round_trip_endian(ByteUtils.LittleEndian) },
 );
 
 suite(
-    "ByteUtils Big-Endian Conversions",
-    func() {
-        test(
-            "Nat8 round-trip conversion",
-            func() {
-                let original : Nat8 = 123;
-                let bytes = ByteUtils.BE.fromNat8(original);
+    "ByteUtils Big-Endian Round-Trip Conversions",
+    func() { round_trip_endian(ByteUtils.BigEndian) },
+);
 
-                // Verify byte pattern
-                assert bytes == [123];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toNat8(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Nat16 round-trip conversion and byte pattern",
-            func() {
-                // Test with a known value 0x1234 (4660 in decimal)
-                let original : Nat16 = 0x1234;
-                let bytes = ByteUtils.BE.fromNat16(original);
-
-                // Verify byte pattern - in big-endian, most significant byte comes first
-                assert bytes == [0x12, 0x34];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toNat16(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Nat32 round-trip conversion and byte pattern",
-            func() {
-                // Test with a known value 0x12345678
-                let original : Nat32 = 0x12345678;
-                let bytes = ByteUtils.BE.fromNat32(original);
-
-                // Verify byte pattern - in big-endian, bytes are in natural order
-                assert bytes == [0x12, 0x34, 0x56, 0x78];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toNat32(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Nat64 round-trip conversion and byte pattern",
-            func() {
-                // Test with a known value 0x0102030405060708
-                let original : Nat64 = 0x0102030405060708;
-                let bytes = ByteUtils.BE.fromNat64(original);
-
-                // Verify byte pattern
-                assert bytes == [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toNat64(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int8 round-trip conversion",
-            func() {
-                let original : Int8 = -42;
-                let bytes = ByteUtils.BE.fromInt8(original);
-
-                // Verify byte pattern
-                assert bytes == [214]; // Two's complement of -42 is 214
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toInt8(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int16 round-trip conversion and byte pattern",
-            func() {
-                // Test with a negative value -12345
-                // Two's complement of -12345 is 53191 (0xCFC7)
-                let original : Int16 = -12345;
-                let bytes = ByteUtils.BE.fromInt16(original);
-
-                // Verify byte pattern
-                assert bytes == [0xCF, 0xC7];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toInt16(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int32 round-trip conversion",
-            func() {
-                let original : Int32 = -1234567890;
-                let bytes = ByteUtils.BE.fromInt32(original);
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toInt32(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Int64 round-trip conversion",
-            func() {
-                let original : Int64 = -1234567890123456789;
-                let bytes = ByteUtils.BE.fromInt64(original);
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toInt64(bytes.vals());
-                assert restored == original;
-            },
-        );
-
-        test(
-            "Float64 round-trip conversion and byte pattern",
-            func() {
-                // Test with value 1.0
-                // IEEE-754 encoding of 1.0 is 0x3FF0000000000000
-                let original : Float = 1.0;
-                let bytes = ByteUtils.BE.fromFloat64(original);
-
-                // Verify byte pattern - in big-endian, bytes are in natural order
-                assert bytes == [0x3F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-
-                // Verify round-trip conversion
-                let restored = ByteUtils.BE.toFloat64(bytes.vals());
-
-                // For floating-point values, we need to account for small precision differences
-                let epsilon : Float = 0.0000001;
-                assert Float.abs(restored - original) < epsilon;
-            },
-        );
-    },
+suite(
+    "ByteUtils Sorted bytes Round-Trip Conversions",
+    func() { round_trip_endian(ByteUtils.Sorted) },
 );
 
 suite(
     "LEB128/SLEB128 Encoding and Decoding",
     func() {
         test(
-            "toLEB128_64/fromLEB128_64 round-trip conversion",
+            "toLEB128_64/fromLEB128_64 large range testing with fuzzing",
             func() {
-                // Test round-trip conversion for various values
-                let values : [Nat64] = [0, 1, 127, 128, 624485, 1234567890];
 
-                for (value in values.vals()) {
-                    let encoded = ByteUtils.toLEB128_64(value);
+                // Test 10,000 random Nat64 values
+                for (i in Iter.range(0, 9_999)) {
+                    let original : Nat64 = Nat64.fromNat(input.get(i));
+                    let encoded = ByteUtils.toLEB128_64(original);
                     let decoded = ByteUtils.fromLEB128_64(encoded.vals());
-                    assert decoded == value;
+                    assert decoded == original;
                 };
             },
         );
 
         test(
-            "toLEB128_64 produces correct byte patterns",
+            "toSLEB128_64/fromSLEB128_64 large range testing with fuzzing",
             func() {
-                // Test specific byte patterns for known values
 
-                // Value 1 should encode to [0x01]
-                let encoded1 = ByteUtils.toLEB128_64(1);
-                assert encoded1 == [0x01];
-
-                // Value 127 should encode to [0x7F]
-                let encoded127 = ByteUtils.toLEB128_64(127);
-                assert encoded127 == [0x7F];
-
-                // Value 128 should encode to [0x80, 0x01]
-                let encoded128 = ByteUtils.toLEB128_64(128);
-                assert encoded128 == [0x80, 0x01];
-
-                // Value 624485 (0x98765) should encode to [0xE5, 0x8E, 0x26]
-                let encoded624485 = ByteUtils.toLEB128_64(624485);
-                assert encoded624485 == [0xE5, 0x8E, 0x26];
-            },
-        );
-
-        test(
-            "toSLEB128_64/fromSLEB128_64 round-trip conversion",
-            func() {
-                // Test round-trip conversion for various values
-                let values : [Int64] = [0, 1, -1, 42, -42, 127, -128, -123456];
-
-                for (value in values.vals()) {
-                    let encoded = ByteUtils.toSLEB128_64(value);
+                // Test 10,000 random Int64 values
+                for (i in Iter.range(0, 9_999)) {
+                    let original : Int64 = Int64.fromNat64(Nat64.fromNat(input.get(i)));
+                    let encoded = ByteUtils.toSLEB128_64(original);
                     let decoded = ByteUtils.fromSLEB128_64(encoded.vals());
-                    assert decoded == value;
+                    assert decoded == original;
                 };
             },
         );
 
         test(
-            "LEB128 test vectors - encoding",
+            "LEB128 test vectors",
             func() {
                 // Test vector: (value, expected bytes)
                 let testVectors : [(Nat64, [Nat8])] = [
@@ -389,41 +258,15 @@ suite(
                 for ((value, expectedBytes) in testVectors.vals()) {
                     let encoded = ByteUtils.toLEB128_64(value);
                     assert encoded == expectedBytes;
+
+                    let decoded = ByteUtils.fromLEB128_64(encoded.vals());
+                    assert decoded == value;
                 };
             },
         );
 
         test(
-            "LEB128 test vectors - decoding",
-            func() {
-                // Test vector: (expected value, bytes)
-                let testVectors : [(Nat64, [Nat8])] = [
-                    (0, [0x00]),
-                    (1, [0x01]),
-                    (127, [0x7f]),
-                    (128, [0x80, 0x01]),
-                    (129, [0x81, 0x01]),
-                    (255, [0xff, 0x01]),
-                    (256, [0x80, 0x02]),
-                    (624485, [0xe5, 0x8e, 0x26]),
-                    (12345, [0xb9, 0x60]),
-                    (123456, [0xc0, 0xc4, 0x07]),
-                    (1234567, [0x87, 0xad, 0x4b]),
-                    (12345678, [0xce, 0xc2, 0xf1, 0x05]),
-                    (123456789, [0x95, 0x9a, 0xef, 0x3a]),
-                    (4294967295, [0xff, 0xff, 0xff, 0xff, 0x0f]),
-                    (4294967296, [0x80, 0x80, 0x80, 0x80, 0x10]),
-                ];
-
-                for ((expectedValue, bytes) in testVectors.vals()) {
-                    let decoded = ByteUtils.fromLEB128_64(bytes.vals());
-                    assert decoded == expectedValue;
-                };
-            },
-        );
-
-        test(
-            "SLEB128 test vectors - encoding",
+            "SLEB128 test vectors ",
             func() {
                 // Test vector: (value, expected bytes)
                 let testVectors : [(Int64, [Nat8])] = [
@@ -453,244 +296,13 @@ suite(
                 for ((value, expectedBytes) in testVectors.vals()) {
                     let encoded = ByteUtils.toSLEB128_64(value);
                     assert encoded == expectedBytes;
-                };
-            },
-        );
-
-        test(
-            "SLEB128 test vectors - decoding",
-            func() {
-                // Test vector: (expected value, bytes)
-                let testVectors : [(Int64, [Nat8])] = [
-                    (0, [0x00]),
-                    (1, [0x01]),
-                    (-1, [0x7f]),
-                    (63, [0x3f]),
-                    (-64, [0x40]),
-                    (64, [0xc0, 0x00]),
-                    (-65, [0xbf, 0x7f]),
-                    (127, [0xff, 0x00]),
-                    (-128, [0x80, 0x7f]),
-                    (128, [0x80, 0x01]),
-                    (-129, [0xff, 0x7e]),
-                    (12345, [0xb9, 0xe0, 0x00]),
-                    (-12345, [0xc7, 0x9f, 0x7f]),
-                    (123456, [0xc0, 0xc4, 0x07]),
-                    (-123456, [0xc0, 0xbb, 0x78]),
-                    (1234567, [0x87, 0xad, 0xcb, 0x00]),
-                    (-1234567, [0xf9, 0xd2, 0xb4, 0x7f]),
-                    (12345678, [0xce, 0xc2, 0xf1, 0x05]),
-                    (-12345678, [0xb2, 0xbd, 0x8e, 0x7a]),
-                    (2147483647, [0xff, 0xff, 0xff, 0xff, 0x07]),
-                    (-2147483648, [0x80, 0x80, 0x80, 0x80, 0x78]),
-                ];
-
-                for ((expectedValue, bytes) in testVectors.vals()) {
-                    let decoded = ByteUtils.fromSLEB128_64(bytes.vals());
-                    assert decoded == expectedValue;
-                };
-            },
-        );
-
-        test(
-            "LEB128 edge cases - powers of 2",
-            func() {
-                // Test vector: (value, expected bytes)
-                let testVectors : [(Nat64, [Nat8])] = [
-                    (1, [0x01]), // 2^0
-                    (128, [0x80, 0x01]), // 2^7
-                    (16384, [0x80, 0x80, 0x01]), // 2^14
-                    (2097152, [0x80, 0x80, 0x80, 0x01]), // 2^21
-                    (268435456, [0x80, 0x80, 0x80, 0x80, 0x01]), // 2^28
-                ];
-
-                for ((value, expectedBytes) in testVectors.vals()) {
-                    let encoded = ByteUtils.toLEB128_64(value);
-                    assert encoded == expectedBytes;
-
-                    let decoded = ByteUtils.fromLEB128_64(encoded.vals());
-                    assert decoded == value;
-                };
-            },
-        );
-
-        test(
-            "LEB128 edge cases - powers of 2 minus 1",
-            func() {
-                // Test vector: (value, expected bytes)
-                let testVectors : [(Nat64, [Nat8])] = [
-                    (127, [0x7f]), // 2^7-1
-                    (16383, [0xff, 0x7f]), // 2^14-1
-                    (2097151, [0xff, 0xff, 0x7f]), // 2^21-1
-                    (268435455, [0xff, 0xff, 0xff, 0x7f]), // 2^28-1
-                    (34359738367, [0xff, 0xff, 0xff, 0xff, 0x7f]), // 2^35-1
-                ];
-
-                for ((value, expectedBytes) in testVectors.vals()) {
-                    let encoded = ByteUtils.toLEB128_64(value);
-                    assert encoded == expectedBytes;
-
-                    let decoded = ByteUtils.fromLEB128_64(encoded.vals());
-                    assert decoded == value;
-                };
-            },
-        );
-
-        test(
-            "SLEB128 edge cases - negative powers of 2",
-            func() {
-                // Test vector: (value, expected bytes)
-                let testVectors : [(Int64, [Nat8])] = [
-                    (-1, [0x7f]), // -2^0
-                    (-128, [0x80, 0x7f]), // -2^7
-                    (-16384, [0x80, 0x80, 0x7f]), // -2^14
-                    (-2097152, [0x80, 0x80, 0x80, 0x7f]), // -2^21
-                    (-268435456, [0x80, 0x80, 0x80, 0x80, 0x7f]), // -2^28
-                ];
-
-                for ((value, expectedBytes) in testVectors.vals()) {
-                    let encoded = ByteUtils.toSLEB128_64(value);
-                    assert encoded == expectedBytes;
 
                     let decoded = ByteUtils.fromSLEB128_64(encoded.vals());
                     assert decoded == value;
                 };
             },
         );
-    },
-);
 
-suite(
-    "ByteUtils Edge Cases",
-    func() {
-        test(
-            "Zero values - Little Endian",
-            func() {
-                // Test zero values for all numeric types
-                let nat8_zero : Nat8 = 0;
-                let bytes = ByteUtils.LE.fromNat8(nat8_zero);
-                let restored = ByteUtils.LE.toNat8(bytes.vals());
-                assert restored == nat8_zero;
-
-                let nat16_zero : Nat16 = 0;
-                let bytes16 = ByteUtils.LE.fromNat16(nat16_zero);
-                let restored16 = ByteUtils.LE.toNat16(bytes16.vals());
-                assert restored16 == nat16_zero;
-
-                let int8_zero : Int8 = 0;
-                let bytesI8 = ByteUtils.LE.fromInt8(int8_zero);
-                let restoredI8 = ByteUtils.LE.toInt8(bytesI8.vals());
-                assert restoredI8 == int8_zero;
-
-                let float_zero : Float = 0.0;
-                let bytesF = ByteUtils.LE.fromFloat64(float_zero);
-                let restoredF = ByteUtils.LE.toFloat64(bytesF.vals());
-                assert restoredF == float_zero;
-            },
-        );
-
-        test(
-            "Maximum values - Little Endian",
-            func() {
-                // Test maximum values for all numeric types
-                let nat8_max : Nat8 = 255;
-                let bytes = ByteUtils.LE.fromNat8(nat8_max);
-                let restored = ByteUtils.LE.toNat8(bytes.vals());
-                assert restored == nat8_max;
-
-                let nat16_max : Nat16 = 65535;
-                let bytes16 = ByteUtils.LE.fromNat16(nat16_max);
-                let restored16 = ByteUtils.LE.toNat16(bytes16.vals());
-                assert restored16 == nat16_max;
-
-                let nat32_max : Nat32 = 4294967295;
-                let bytes32 = ByteUtils.LE.fromNat32(nat32_max);
-                let restored32 = ByteUtils.LE.toNat32(bytes32.vals());
-                assert restored32 == nat32_max;
-
-                let int8_max : Int8 = 127;
-                let bytesI8 = ByteUtils.LE.fromInt8(int8_max);
-                let restoredI8 = ByteUtils.LE.toInt8(bytesI8.vals());
-                assert restoredI8 == int8_max;
-            },
-        );
-
-        test(
-            "Minimum values - Little Endian",
-            func() {
-                // Test minimum values for signed types
-                let int8_min : Int8 = -128;
-                let bytesI8 = ByteUtils.LE.fromInt8(int8_min);
-                let restoredI8 = ByteUtils.LE.toInt8(bytesI8.vals());
-                assert restoredI8 == int8_min;
-
-                let int16_min : Int16 = -32768;
-                let bytesI16 = ByteUtils.LE.fromInt16(int16_min);
-                let restoredI16 = ByteUtils.LE.toInt16(bytesI16.vals());
-                assert restoredI16 == int16_min;
-
-                let int32_min : Int32 = -2147483648;
-                let bytesI32 = ByteUtils.LE.fromInt32(int32_min);
-                let restoredI32 = ByteUtils.LE.toInt32(bytesI32.vals());
-                assert restoredI32 == int32_min;
-            },
-        );
-
-        test(
-            "Special float values - Little Endian",
-            func() {
-                // Test special float values
-                let float_inf : Float = 1.0 / 0.0;
-                Debug.print(debug_show { float_inf });
-
-                // Error message:
-                //    0: 0xda4e - <unknown>!bigint_trap
-                //    1: 0xe1b9 - <unknown>!bigint_of_float64
-                //    2: 0x90ae - <unknown>!fromFloat
-                //    3: 0x474d - <unknown>!fromFloat64
-                //
-                //! Seems like a system limitation to convert the infinity value
-
-                // let bytesInf = ByteUtils.LE.fromFloat64(float_inf);
-                // // Debug.print(debug_show { bytesInf });
-                // let restoredInf = ByteUtils.LE.toFloat64(bytesInf.vals());
-
-                // assert restoredInf == float_inf;
-
-                // let float_neg_inf : Float = -1.0 / 0.0;
-                // let bytesNegInf = ByteUtils.LE.fromFloat64(float_neg_inf);
-                // let restoredNegInf = ByteUtils.LE.toFloat64(bytesNegInf.vals());
-
-                // Debug.print(debug_show { restoredNegInf; float_neg_inf; bytesNegInf });
-                // assert restoredNegInf == float_neg_inf;
-            },
-        );
-
-        test(
-            "Zero values - Big Endian",
-            func() {
-                // Test zero values for all numeric types
-                let nat8_zero : Nat8 = 0;
-                let bytes = ByteUtils.BE.fromNat8(nat8_zero);
-                let restored = ByteUtils.BE.toNat8(bytes.vals());
-                assert restored == nat8_zero;
-
-                let nat16_zero : Nat16 = 0;
-                let bytes16 = ByteUtils.BE.fromNat16(nat16_zero);
-                let restored16 = ByteUtils.BE.toNat16(bytes16.vals());
-                assert restored16 == nat16_zero;
-
-                let int8_zero : Int8 = 0;
-                let bytesI8 = ByteUtils.BE.fromInt8(int8_zero);
-                let restoredI8 = ByteUtils.BE.toInt8(bytesI8.vals());
-                assert restoredI8 == int8_zero;
-
-                let float_zero : Float = 0.0;
-                let bytesF = ByteUtils.BE.fromFloat64(float_zero);
-                let restoredF = ByteUtils.BE.toFloat64(bytesF.vals());
-                assert restoredF == float_zero;
-            },
-        );
     },
 );
 
@@ -846,557 +458,628 @@ suite(
             },
         );
 
-        // test(
-        //     "Buffer operations - addLEB128_64/readLEB128_64 with large values",
-        //     func() {
-        //         // Test vector with large Nat64 values: (value, expected bytes)
-        //         let testVectors : [(Nat64, [Nat8])] = [
-        //             // Values near 2^63
-        //             (9223372036854775807, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]), // 2^63 - 1
-        //             (9223372036854775808, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01]), // 2^63
-
-        //             // Value at 2^64 - 1 (max Nat64)
-        //             (18446744073709551615, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01]),
-
-        //             // Large values that require multiple bytes
-        //             (1125899906842624, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x10]), // 2^50
-        //             (4611686018427387904, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x40]), // 2^62
-        //         ];
-
-        //         for ((value, expectedBytes) in testVectors.vals()) {
-        //             let buf = Buffer.Buffer<Nat8>(16);
-        //             ByteUtils.Buffer.addLEB128_64(buf, value);
-
-        //             // Verify buffer has expected content
-        //             assert buf.size() == expectedBytes.size();
-        //             for (i in Iter.range(0, expectedBytes.size() - 1)) {
-        //                 assert buf.get(i) == expectedBytes[i];
-        //             };
-
-        //             // Verify round-trip conversion
-        //             let readBack = ByteUtils.Buffer.readLEB128_64(buf);
-        //             assert readBack == value;
-        //         };
-        //     },
-        // );
-
-        // test(
-        //     "Buffer operations - addSLEB128_64/readSLEB128_64 with large values",
-        //     func() {
-        //         // Test vector with large Int64 values: (value, expected bytes)
-        //         let testVectors : [(Int64, [Nat8])] = [
-        //             // Max Int64 value (2^63 - 1)
-        //             (9223372036854775807, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
-
-        //             // Min Int64 value (-2^63)
-        //             (-9223372036854775808, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7F]),
-
-        //             // Large positive values
-        //             (4611686018427387903, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F]), // 2^62 - 1
-        //             (4611686018427387904, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x40]), // 2^62
-
-        //             // Large negative values
-        //             (-4611686018427387904, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x40]), // -2^62
-        //             (-4611686018427387905, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF]), // -(2^62 + 1)
-        //         ];
-
-        //         for ((value, expectedBytes) in testVectors.vals()) {
-        //             let buf = Buffer.Buffer<Nat8>(16);
-        //             ByteUtils.Buffer.addSLEB128_64(buf, value);
-
-        //             // Verify buffer has expected content
-        //             assert buf.size() == expectedBytes.size();
-        //             for (i in Iter.range(0, expectedBytes.size() - 1)) {
-        //                 assert buf.get(i) == expectedBytes[i];
-        //             };
-
-        //             // Verify round-trip conversion
-        //             let readBack = ByteUtils.Buffer.readSLEB128_64(buf);
-        //             assert readBack == value;
-        //         };
-        //     },
-        // );
-
-        // test(
-        //     "Buffer operations - writeLEB128_64/writeSLEB128_64 at specific offsets with large values",
-        //     func() {
-        //         // Test with a very large Nat64 value: 2^64 - 1
-        //         let maxNat64 : Nat64 = 18446744073709551615;
-        //         // Expected encoding: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01]
-
-        //         // Test with min/max Int64 values
-        //         let maxInt64 : Int64 = 9223372036854775807; // 2^63 - 1
-        //         let minInt64 : Int64 = -9223372036854775808; // -2^63
-
-        //         // Create buffer with zeroes
-        //         let buf = Buffer.Buffer<Nat8>(32);
-        //         for (_ in Iter.range(0, 31)) {
-        //             buf.add(0);
-        //         };
-
-        //         // Write at various offsets
-        //         ByteUtils.Buffer.writeLEB128_64(buf, 2, maxNat64);
-        //         ByteUtils.Buffer.writeSLEB128_64(buf, 15, maxInt64);
-        //         ByteUtils.Buffer.writeSLEB128_64(buf, 25, minInt64);
-
-        //         // Verify Nat64 max value encoding at offset 2
-        //         let expectedNat64Bytes = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01];
-        //         for (i in Iter.range(0, expectedNat64Bytes.size() - 1)) {
-        //             assert buf.get(2 + i) == expectedNat64Bytes[i];
-        //         };
-
-        //         // Verify Int64 max value encoding at offset 15
-        //         let expectedMaxInt64Bytes = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F];
-        //         for (i in Iter.range(0, expectedMaxInt64Bytes.size() - 1)) {
-        //             assert buf.get(15 + i) == expectedMaxInt64Bytes[i];
-        //         };
-
-        //         // Verify Int64 min value encoding at offset 25
-        //         let expectedMinInt64Bytes = [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7F];
-        //         for (i in Iter.range(0, expectedMinInt64Bytes.size() - 1)) {
-        //             assert buf.get(25 + i) == expectedMinInt64Bytes[i];
-        //         };
-
-        //         // Create slice buffers to read values back
-        //         let slice1 = Buffer.Buffer<Nat8>(10);
-        //         for (i in Iter.range(0, 9)) {
-        //             slice1.add(buf.get(2 + i));
-        //         };
-        //         let readNat64 = ByteUtils.Buffer.readLEB128_64(slice1);
-        //         assert readNat64 == maxNat64;
-
-        //         let slice2 = Buffer.Buffer<Nat8>(9);
-        //         for (i in Iter.range(0, 8)) {
-        //             slice2.add(buf.get(15 + i));
-        //         };
-        //         let readMaxInt64 = ByteUtils.Buffer.readSLEB128_64(slice2);
-        //         assert readMaxInt64 == maxInt64;
-
-        //         let slice3 = Buffer.Buffer<Nat8>(10);
-        //         for (i in Iter.range(0, 9)) {
-        //             slice3.add(buf.get(25 + i));
-        //         };
-        //         let readMinInt64 = ByteUtils.Buffer.readSLEB128_64(slice3);
-        //         assert readMinInt64 == minInt64;
-        //     },
-        // );
-
-        // test(
-        //     "Complex sequence of LEB128/SLEB128 values in a single buffer",
-        //     func() {
-        //         let buf = Buffer.Buffer<Nat8>(64);
-
-        //         // Add a mix of small and large values
-        //         ByteUtils.Buffer.addLEB128_64(buf, 42); // Small value
-        //         ByteUtils.Buffer.addSLEB128_64(buf, -9223372036854775808); // Min Int64
-        //         ByteUtils.Buffer.addLEB128_64(buf, 18446744073709551615); // Max Nat64
-        //         ByteUtils.Buffer.addSLEB128_64(buf, 9223372036854775807); // Max Int64
-        //         ByteUtils.Buffer.addLEB128_64(buf, 1125899906842624); // 2^50
-
-        //         // Starting positions for each value
-        //         let pos1 = 0; // 42 (1 byte)
-        //         let pos2 = pos1 + 1; // Min Int64 (10 bytes)
-        //         let pos3 = pos2 + 10; // Max Nat64 (10 bytes)
-        //         let pos4 = pos3 + 10; // Max Int64 (9 bytes)
-        //         let pos5 = pos4 + 9; // 2^50 (7 bytes)
-
-        //         // Read values back using slices
-        //         let slice1 = Buffer.Buffer<Nat8>(1);
-        //         slice1.add(buf.get(pos1));
-        //         let val1 = ByteUtils.Buffer.readLEB128_64(slice1);
-        //         assert val1 == 42;
-
-        //         let slice2 = Buffer.Buffer<Nat8>(10);
-        //         for (i in Iter.range(0, 9)) {
-        //             slice2.add(buf.get(pos2 + i));
-        //         };
-        //         let val2 = ByteUtils.Buffer.readSLEB128_64(slice2);
-        //         assert val2 == -9223372036854775808;
-
-        //         let slice3 = Buffer.Buffer<Nat8>(10);
-        //         for (i in Iter.range(0, 9)) {
-        //             slice3.add(buf.get(pos3 + i));
-        //         };
-        //         let val3 = ByteUtils.Buffer.readLEB128_64(slice3);
-        //         assert val3 == 18446744073709551615;
-
-        //         let slice4 = Buffer.Buffer<Nat8>(9);
-        //         for (i in Iter.range(0, 8)) {
-        //             slice4.add(buf.get(pos4 + i));
-        //         };
-        //         let val4 = ByteUtils.Buffer.readSLEB128_64(slice4);
-        //         assert val4 == 9223372036854775807;
-
-        //         let slice5 = Buffer.Buffer<Nat8>(7);
-        //         for (i in Iter.range(0, 6)) {
-        //             slice5.add(buf.get(pos5 + i));
-        //         };
-        //         let val5 = ByteUtils.Buffer.readLEB128_64(slice5);
-        //         assert val5 == 1125899906842624;
-        //     },
-        // );
-    },
-);
-
-suite(
-    "Buffer Operations - Big Endian",
-    func() {
         test(
-            "addNat8/readNat8",
+            "Buffer operations large range testing - LE",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                let value : Nat8 = 123;
-                ByteUtils.Buffer.BE.addNat8(buf, value);
-                let restored = ByteUtils.Buffer.BE.readNat8(buf, 0);
-                assert restored == value;
-            },
-        );
 
-        test(
-            "addNat16/readNat16",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                let value : Nat16 = 12345;
-                ByteUtils.Buffer.BE.addNat16(buf, value);
-                let restored = ByteUtils.Buffer.BE.readNat16(buf, 0);
-                assert restored == value;
-            },
-        );
+                // Test 1,000 random values for buffer operations (reduced from 10k for performance)
+                for (i in Iter.range(0, 999)) {
+                    let buf = Buffer.Buffer<Nat8>(16);
 
-        test(
-            "addNat32/readNat32",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                let value : Nat32 = 1234567890;
-                ByteUtils.Buffer.BE.addNat32(buf, value);
-                let restored = ByteUtils.Buffer.BE.readNat32(buf, 0);
-                assert restored == value;
-            },
-        );
+                    let nat16_val : Nat16 = fuzz.nat16.random();
+                    let nat32_val : Nat32 = fuzz.nat32.random();
+                    let int16_val : Int16 = fuzz.int16.random();
+                    let int32_val : Int32 = fuzz.int32.random();
 
-        test(
-            "addNat64/readNat64",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                let value : Nat64 = 1234567890123456789;
-                ByteUtils.Buffer.BE.addNat64(buf, value);
-                let restored = ByteUtils.Buffer.BE.readNat64(buf, 0);
-                assert restored == value;
-            },
-        );
+                    ByteUtils.Buffer.LE.addNat16(buf, nat16_val);
+                    ByteUtils.Buffer.LE.addNat32(buf, nat32_val);
+                    ByteUtils.Buffer.LE.addInt16(buf, int16_val);
+                    ByteUtils.Buffer.LE.addInt32(buf, int32_val);
 
-        test(
-            "addInt8/readInt8",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                let value : Int8 = -42;
-                ByteUtils.Buffer.BE.addInt8(buf, value);
-                let restored = ByteUtils.Buffer.BE.readInt8(buf, 0);
-                assert restored == value;
-            },
-        );
+                    let restored_nat16 = ByteUtils.Buffer.LE.readNat16(buf, 0);
+                    let restored_nat32 = ByteUtils.Buffer.LE.readNat32(buf, 2);
+                    let restored_int16 = ByteUtils.Buffer.LE.readInt16(buf, 6);
+                    let restored_int32 = ByteUtils.Buffer.LE.readInt32(buf, 8);
 
-        test(
-            "addInt16/readInt16",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                let value : Int16 = -12345;
-                ByteUtils.Buffer.BE.addInt16(buf, value);
-                let restored = ByteUtils.Buffer.BE.readInt16(buf, 0);
-                assert restored == value;
-            },
-        );
-
-        test(
-            "writeNat16/readNat16",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(10);
-                // Fill buffer with zeros
-                for (_ in Iter.range(0, 9)) {
-                    buf.add(0);
+                    assert restored_nat16 == nat16_val;
+                    assert restored_nat32 == nat32_val;
+                    assert restored_int16 == int16_val;
+                    assert restored_int32 == int32_val;
                 };
-
-                let value : Nat16 = 12345;
-                ByteUtils.Buffer.BE.writeNat16(buf, 5, value);
-                let restored = ByteUtils.Buffer.BE.readNat16(buf, 5);
-                assert restored == value;
             },
         );
 
         test(
-            "Multiple values in buffer",
-            func() {
-                let buf = Buffer.Buffer<Nat8>(20);
-
-                let nat8val : Nat8 = 123;
-                let nat16val : Nat16 = 12345;
-                let int8val : Int8 = -42;
-                let int16val : Int16 = -12345;
-
-                // Add values to buffer
-                ByteUtils.Buffer.BE.addNat8(buf, nat8val);
-                ByteUtils.Buffer.BE.addNat16(buf, nat16val);
-                ByteUtils.Buffer.BE.addInt8(buf, int8val);
-                ByteUtils.Buffer.BE.addInt16(buf, int16val);
-
-                // Read them back in sequence
-                let restored8 = ByteUtils.Buffer.BE.readNat8(buf, 0);
-                let restored16 = ByteUtils.Buffer.BE.readNat16(buf, 1);
-                let restoredI8 = ByteUtils.Buffer.BE.readInt8(buf, 3);
-                let restoredI16 = ByteUtils.Buffer.BE.readInt16(buf, 4);
-
-                assert restored8 == nat8val;
-                assert restored16 == nat16val;
-                assert restoredI8 == int8val;
-                assert restoredI16 == int16val;
-            },
-        );
-    },
-);
-
-suite(
-    "Endianness Consistency",
-    func() {
-        test(
-            "LE and BE represent the same values differently",
-            func() {
-                let value : Nat32 = 0x12345678;
-
-                let leBytes = ByteUtils.LE.fromNat32(value);
-                let beBytes = ByteUtils.BE.fromNat32(value);
-
-                // LE should be [0x78, 0x56, 0x34, 0x12]
-                assert leBytes == [0x78, 0x56, 0x34, 0x12];
-
-                // BE should be [0x12, 0x34, 0x56, 0x78]
-                assert beBytes == [0x12, 0x34, 0x56, 0x78];
-            },
-        );
-
-        test(
-            "LE bytes interpreted as BE give different values",
-            func() {
-                let value : Nat32 = 0x12345678;
-
-                // Convert to LE bytes
-                let leBytes = ByteUtils.LE.fromNat32(value);
-
-                // Interpret those bytes as BE
-                let reinterpreted = ByteUtils.BE.toNat32(leBytes.vals());
-
-                // Should be a different value
-                assert reinterpreted != value;
-
-                // Should be byte-reversed: 0x78563412
-                assert reinterpreted == 0x78563412;
-            },
-        );
-    },
-);
-
-suite(
-    "IEEE-754 Float Encoding Test Vectors",
-    func() {
-        // test(
-        //     "Float special values - Little Endian",
-        //     func() {
-        //         // Test vector: (value, expected bytes in LE format)
-        //         let testVectors : [(Float, [Nat8])] = [
-        //             (0.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        //             (1.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F]),
-        //             (-1.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0xBF]),
-        //             (3.14159, [0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40]),
-        //             (2.718281828459045, [0x77, 0xBE, 0x9F, 0x1A, 0x2F, 0xDD, 0x05, 0x40]),
-        //             (1.7976931348623157e+308, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xEF, 0x7F]), // Max double
-        //             (2.2250738585072014e-308, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00]), // Min normal double
-        //         ];
-
-        //         for ((value, expectedBytes) in testVectors.vals()) {
-        //             let encoded = ByteUtils.LE.fromFloat64(value);
-
-        //             assert encoded.size() == expectedBytes.size();
-
-        //             for (i in Iter.range(0, encoded.size() - 1)) {
-        //                 assert encoded[i] == expectedBytes[i];
-        //             };
-
-        //             let restored = ByteUtils.LE.toFloat64(encoded.vals());
-
-        //             // For floating-point, use epsilon comparison
-        //             let epsilon : Float = 1e-10;
-        //             assert Float.abs(restored - value) < epsilon;
-        //         };
-        //     },
-        // );
-
-        // test(
-        //     "Float special values - Big Endian",
-        //     func() {
-        //         // Test vector: (value, expected bytes in BE format)
-        //         let testVectors : [(Float, [Nat8])] = [
-        //             (0.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        //             (1.0, [0x3F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        //             (-1.0, [0xBF, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        //             (3.14159, [0x40, 0x09, 0x21, 0xF9, 0xF0, 0x1B, 0x86, 0x6E]),
-        //             (2.718281828459045, [0x40, 0x05, 0xDD, 0x2F, 0x1A, 0x9F, 0xBE, 0x77]),
-        //             (1.7976931348623157e+308, [0x7F, 0xEF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]), // Max double
-        //             (2.2250738585072014e-308, [0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]), // Min normal double
-        //         ];
-
-        //         for ((value, expectedBytes) in testVectors.vals()) {
-        //             let encoded = ByteUtils.BE.fromFloat64(value);
-
-        //             assert encoded.size() == expectedBytes.size();
-
-        //             for (i in Iter.range(0, encoded.size() - 1)) {
-        //                 assert encoded[i] == expectedBytes[i];
-        //             };
-
-        //             let restored = ByteUtils.BE.toFloat64(encoded.vals());
-
-        //             // For floating-point, use epsilon comparison
-        //             let epsilon : Float = 1e-10;
-        //             assert Float.abs(restored - value) < epsilon;
-        //         };
-        //     },
-        // );
-    },
-);
-
-suite(
-    "Integer Edge Cases and Extremes",
-    func() {
-        test(
-            "Int32/Int64 extremes - Little Endian",
-            func() {
-                // Int32 min/max
-                let int32_min : Int32 = -2147483648; // -2^31
-                let int32_max : Int32 = 2147483647; // 2^31-1
-
-                // Verify Int32 min
-                let bytes_int32_min = ByteUtils.LE.fromInt32(int32_min);
-                assert bytes_int32_min == [0x00, 0x00, 0x00, 0x80];
-
-                // Verify Int32 max
-                let bytes_int32_max = ByteUtils.LE.fromInt32(int32_max);
-                assert bytes_int32_max == [0xFF, 0xFF, 0xFF, 0x7F];
-
-                // Int64 min/max
-                let int64_min : Int64 = -9223372036854775808; // -2^63
-                let int64_max : Int64 = 9223372036854775807; // 2^63-1
-
-                // Round-trip Int64 extremes
-                let bytes_int64_min = ByteUtils.LE.fromInt64(int64_min);
-                let restored_int64_min = ByteUtils.LE.toInt64(bytes_int64_min.vals());
-                assert restored_int64_min == int64_min;
-
-                // Verify Int64 min byte pattern
-                assert bytes_int64_min == [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80];
-
-                // Round-trip Int64 max
-                let bytes_int64_max = ByteUtils.LE.fromInt64(int64_max);
-                let restored_int64_max = ByteUtils.LE.toInt64(bytes_int64_max.vals());
-                assert restored_int64_max == int64_max;
-
-                // Verify Int64 max byte pattern
-                assert bytes_int64_max == [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F];
-            },
-        );
-
-        test(
-            "Nat32/Nat64 extremes - Big Endian",
-            func() {
-                // Nat32 extremes
-                let nat32_zero : Nat32 = 0;
-                let nat32_max : Nat32 = 4294967295; // 2^32-1
-
-                // Verify Nat32 zero
-                let bytes_nat32_zero = ByteUtils.BE.fromNat32(nat32_zero);
-                assert bytes_nat32_zero == [0x00, 0x00, 0x00, 0x00];
-
-                // Verify Nat32 max
-                let bytes_nat32_max = ByteUtils.BE.fromNat32(nat32_max);
-                assert bytes_nat32_max == [0xFF, 0xFF, 0xFF, 0xFF];
-
-                // Nat64 extremes
-                let nat64_zero : Nat64 = 0;
-                let nat64_max : Nat64 = 18446744073709551615; // 2^64-1
-
-                // Round-trip for Nat64 max
-                let bytes_nat64_max = ByteUtils.BE.fromNat64(nat64_max);
-                let restored_nat64_max = ByteUtils.BE.toNat64(bytes_nat64_max.vals());
-                assert restored_nat64_max == nat64_max;
-
-                // Verify Nat64 max byte pattern
-                assert bytes_nat64_max == [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
-            },
-        );
-    },
-);
-
-suite(
-    "Complex Buffer Operations",
-    func() {
-        test(
-            "Mixed data type buffer operations - LE",
+            "writeLEB128_64/readLEB128_64 buffer operations",
             func() {
                 let buf = Buffer.Buffer<Nat8>(32);
 
-                // Write multiple different types in sequence
-                ByteUtils.Buffer.LE.addNat16(buf, 0x1234);
-                ByteUtils.Buffer.LE.addInt32(buf, -1234567890);
-                ByteUtils.Buffer.LE.addNat8(buf, 0xFF);
-                ByteUtils.Buffer.LE.addFloat64(buf, 3.14159);
+                // Fill buffer with zeros
+                for (_ in Iter.range(0, 31)) {
+                    buf.add(0);
+                };
 
-                // Verify buffer size
-                assert buf.size() == 15; // 2 + 4 + 1 + 8 bytes
+                // Test values with known encodings
+                let testValues : [(Nat64, Nat, [Nat8])] = [
+                    (0, 0, [0x00]),
+                    (127, 5, [0x7F]),
+                    (128, 10, [0x80, 0x01]),
+                    (624485, 15, [0xE5, 0x8E, 0x26]),
+                ];
 
-                // Read values back in sequence
-                let val1 = ByteUtils.Buffer.LE.readNat16(buf, 0);
-                let val2 = ByteUtils.Buffer.LE.readInt32(buf, 2);
-                let val3 = ByteUtils.Buffer.LE.readNat8(buf, 6);
-                let val4 = ByteUtils.Buffer.LE.readNat64(buf, 7); // Read raw bytes
+                for ((value, offset, expectedBytes) in testValues.vals()) {
+                    // Write at specific offset
+                    ByteUtils.Buffer.writeLEB128_64(buf, offset, value);
 
-                // Verify values
-                assert val1 == 0x1234;
-                assert val2 == -1234567890;
-                assert val3 == 0xFF;
+                    // Verify bytes were written correctly
+                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                        assert buf.get(offset + i) == expectedBytes[i];
+                    };
 
-                // Convert raw bytes back to float and verify with epsilon
-                let float_bytes = Array.tabulate<Nat8>(8, func(i) = buf.get(7 + i));
-                let val4_float = ByteUtils.LE.toFloat64(float_bytes.vals());
-                assert Float.abs(val4_float - 3.14159) < 1e-10;
+                    // Create a slice buffer to read from
+                    let sliceBuf = Buffer.Buffer<Nat8>(expectedBytes.size());
+                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                        sliceBuf.add(buf.get(offset + i));
+                    };
+
+                    // Read back and verify
+                    let restored = ByteUtils.Buffer.readLEB128_64(sliceBuf);
+                    assert restored == value;
+                };
             },
         );
 
         test(
-            "Writing at specific offsets - BE",
+            "writeLEB128_64 large range testing with fuzzing",
             func() {
-                let buf = Buffer.Buffer<Nat8>(16);
+
+                // Test 100 random values for performance
+                label testing_loop for (i in Iter.range(0, 99)) {
+                    let buf = Buffer.Buffer<Nat8>(32);
+
+                    // Fill buffer with zeros
+                    for (_ in Iter.range(0, 31)) {
+                        buf.add(0);
+                    };
+
+                    let value : Nat64 = fuzz.nat64.random();
+                    let offset = 5; // Write at offset 5
+
+                    // Write using writeLEB128_64
+                    ByteUtils.Buffer.writeLEB128_64(buf, offset, value);
+
+                    // Create a slice buffer starting from the offset
+                    let sliceBuf = Buffer.Buffer<Nat8>(10);
+                    var j = offset;
+                    while (j < buf.size() and buf.get(j) != 0) {
+                        sliceBuf.add(buf.get(j));
+                        j += 1;
+                        // Handle case where last byte doesn't have continuation bit
+                        if (j > offset and (buf.get(j - 1) & 0x80) == 0) {
+                            break testing_loop;
+                        };
+                    };
+
+                    // Read back and verify
+                    let restored = ByteUtils.Buffer.readLEB128_64(sliceBuf);
+                    assert restored == value;
+                };
+            },
+        );
+
+        test(
+            "writeSLEB128_64/readSLEB128_64 buffer operations",
+            func() {
+                let buf = Buffer.Buffer<Nat8>(32);
 
                 // Fill buffer with zeros
-                for (_ in Iter.range(0, 15)) {
+                for (_ in Iter.range(0, 31)) {
                     buf.add(0);
                 };
 
-                // Write at various offsets
-                ByteUtils.Buffer.BE.writeNat16(buf, 2, 0xABCD);
-                ByteUtils.Buffer.BE.writeNat32(buf, 6, 0x12345678);
-                ByteUtils.Buffer.BE.writeInt16(buf, 12, -42);
+                // Test values with known encodings
+                let testValues : [(Int64, Nat, [Nat8])] = [
+                    (0, 0, [0x00]),
+                    (1, 5, [0x01]),
+                    (-1, 10, [0x7F]),
+                    (63, 15, [0x3F]),
+                    (-64, 20, [0x40]),
+                    (64, 25, [0xC0, 0x00]),
+                ];
 
-                // Verify buffer values at expected positions
-                assert buf.get(2) == 0xAB and buf.get(3) == 0xCD;
-                assert buf.get(6) == 0x12 and buf.get(7) == 0x34 and buf.get(8) == 0x56 and buf.get(9) == 0x78;
-                assert buf.get(12) == 0xFF and buf.get(13) == 0xD6;
+                for ((value, offset, expectedBytes) in testValues.vals()) {
+                    // Write at specific offset
+                    ByteUtils.Buffer.writeSLEB128_64(buf, offset, value);
 
-                // Verify values can be read back
-                let val1 = ByteUtils.Buffer.BE.readNat16(buf, 2);
-                let val2 = ByteUtils.Buffer.BE.readNat32(buf, 6);
-                let val3 = ByteUtils.Buffer.BE.readInt16(buf, 12);
+                    // Verify bytes were written correctly
+                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                        assert buf.get(offset + i) == expectedBytes[i];
+                    };
 
-                assert val1 == 0xABCD;
-                assert val2 == 0x12345678;
-                assert val3 == -42;
+                    // Create a slice buffer to read from
+                    let sliceBuf = Buffer.Buffer<Nat8>(expectedBytes.size());
+                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                        sliceBuf.add(buf.get(offset + i));
+                    };
+
+                    // Read back and verify
+                    let restored = ByteUtils.Buffer.readSLEB128_64(sliceBuf);
+                    assert restored == value;
+                };
+            },
+        );
+
+        test(
+            "writeSLEB128_64 large range testing with fuzzing",
+            func() {
+
+                // Test 100 random values for performance
+                for (i in Iter.range(0, 99)) {
+                    let buf = Buffer.Buffer<Nat8>(32);
+
+                    // Fill buffer with zeros
+                    for (_ in Iter.range(0, 31)) {
+                        buf.add(0);
+                    };
+
+                    let value : Int64 = fuzz.int64.random();
+                    let offset = 5; // Write at offset 5
+
+                    // First, encode the value to know its expected length
+                    let expectedEncoding = ByteUtils.toSLEB128_64(value);
+                    let expectedLength = expectedEncoding.size();
+
+                    // Write using writeSLEB128_64
+                    ByteUtils.Buffer.writeSLEB128_64(buf, offset, value);
+
+                    // Create a slice buffer with the known length
+                    let sliceBuf = Buffer.Buffer<Nat8>(expectedLength);
+                    for (j in Iter.range(0, expectedLength - 1)) {
+                        sliceBuf.add(buf.get(offset + j));
+                    };
+
+                    // Read back and verify
+                    let restored = ByteUtils.Buffer.readSLEB128_64(sliceBuf);
+                    assert restored == value;
+                };
+            },
+        );
+
+        test(
+            "writeLEB128_64 and writeSLEB128_64 at multiple offsets",
+            func() {
+                let buf = Buffer.Buffer<Nat8>(64);
+
+                // Fill buffer with zeros
+                for (_ in Iter.range(0, 63)) {
+                    buf.add(0);
+                };
+
+                // Write multiple values at different offsets
+                let lebValue1 : Nat64 = 12345;
+                let lebValue2 : Nat64 = 128;
+                let slebValue1 : Int64 = -12345;
+                let slebValue2 : Int64 = 64;
+
+                ByteUtils.Buffer.writeLEB128_64(buf, 0, lebValue1);
+                ByteUtils.Buffer.writeLEB128_64(buf, 10, lebValue2);
+                ByteUtils.Buffer.writeSLEB128_64(buf, 20, slebValue1);
+                ByteUtils.Buffer.writeSLEB128_64(buf, 30, slebValue2);
+
+                // Create slice buffers and verify each value
+                // LEB value 1 at offset 0 (should be [0xB9, 0x60])
+                let slice1 = Buffer.Buffer<Nat8>(2);
+                slice1.add(buf.get(0));
+                slice1.add(buf.get(1));
+                let restored1 = ByteUtils.Buffer.readLEB128_64(slice1);
+                assert restored1 == lebValue1;
+
+                // LEB value 2 at offset 10 (should be [0x80, 0x01])
+                let slice2 = Buffer.Buffer<Nat8>(2);
+                slice2.add(buf.get(10));
+                slice2.add(buf.get(11));
+                let restored2 = ByteUtils.Buffer.readLEB128_64(slice2);
+                assert restored2 == lebValue2;
+
+                // SLEB value 1 at offset 20 (should be [0xC7, 0x9F, 0x7F])
+                let slice3 = Buffer.Buffer<Nat8>(3);
+                slice3.add(buf.get(20));
+                slice3.add(buf.get(21));
+                slice3.add(buf.get(22));
+                let restored3 = ByteUtils.Buffer.readSLEB128_64(slice3);
+                assert restored3 == slebValue1;
+
+                // SLEB value 2 at offset 30 (should be [0xC0, 0x00])
+                let slice4 = Buffer.Buffer<Nat8>(2);
+                slice4.add(buf.get(30));
+                slice4.add(buf.get(31));
+                let restored4 = ByteUtils.Buffer.readSLEB128_64(slice4);
+                assert restored4 == slebValue2;
+            },
+        );
+    },
+);
+
+suite(
+    "ByteUtils Test Vectors - Exact Byte Comparisons",
+    func() {
+
+        func byte_comparison<A>(
+            from : (A) -> [Nat8],
+            to : (Iter.Iter<Nat8>) -> A,
+            test_vectors : [(A, [Nat8])],
+            is_equal : (A, A) -> Bool,
+            to_text : (A) -> Text,
+        ) {
+            for ((value, expected) in test_vectors.vals()) {
+                let bytes = from(value);
+                if (bytes != expected) {
+                    Debug.print(debug_show { value = to_text(value); expected; bytes });
+                    assert false;
+                };
+
+                let restored = to(bytes.vals());
+                if (not is_equal(restored, value)) {
+                    Debug.print(debug_show { value = to_text(value); restored = to_text(restored); expected; bytes });
+                    assert false;
+                };
+            };
+        };
+
+        func bidirectional_byte_comparison<A>(
+            little_endian : {
+                from : (A) -> [Nat8];
+                to : (Iter.Iter<Nat8>) -> A;
+            },
+            big_endian : {
+                from : (A) -> [Nat8];
+                to : (Iter.Iter<Nat8>) -> A;
+            },
+
+            test_vectors_in_little_endian : [(A, [Nat8])],
+            is_equal : (A, A) -> Bool,
+            to_text : (A) -> Text,
+        ) {
+            test(
+                "Little Endian byte comparison",
+                func() {
+                    byte_comparison(little_endian.from, little_endian.to, test_vectors_in_little_endian, is_equal, to_text);
+                },
+            );
+
+            test(
+                "Big Endian byte comparison",
+                func() {
+                    byte_comparison(
+                        big_endian.from,
+                        big_endian.to,
+                        Array.map<(A, [Nat8]), (A, [Nat8])>(
+                            test_vectors_in_little_endian,
+                            func(test_vector : (A, [Nat8])) : (A, [Nat8]) {
+                                (test_vector.0, Array.reverse(test_vector.1));
+                            },
+                        ),
+                        is_equal,
+                        to_text,
+                    );
+                },
+            );
+        };
+
+        suite(
+            "Nat8",
+            func() {
+                bidirectional_byte_comparison<Nat8>(
+                    { from = ByteUtils.LE.fromNat8; to = ByteUtils.LE.toNat8 },
+                    { from = ByteUtils.BE.fromNat8; to = ByteUtils.BE.toNat8 },
+                    [
+                        (0, [0x00]),
+                        (1, [0x01]),
+                        (127, [0x7F]),
+                        (128, [0x80]),
+                        (255, [0xFF]),
+                    ],
+                    Nat8.equal,
+                    Nat8.toText,
+                );
+            },
+        );
+
+        suite(
+            "Nat16",
+            func() {
+                bidirectional_byte_comparison<Nat16>(
+                    { from = ByteUtils.LE.fromNat16; to = ByteUtils.LE.toNat16 },
+                    { from = ByteUtils.BE.fromNat16; to = ByteUtils.BE.toNat16 },
+                    [
+                        (0x0000, [0x00, 0x00]),
+                        (0x0001, [0x01, 0x00]),
+                        (0x007F, [0x7F, 0x00]),
+                        (0x0080, [0x80, 0x00]),
+                        (0x00FF, [0xFF, 0x00]),
+                        (0x0100, [0x00, 0x01]),
+                        (0x1234, [0x34, 0x12]),
+                        (0xFFFF, [0xFF, 0xFF]),
+                    ],
+                    Nat16.equal,
+                    Nat16.toText,
+                );
+            },
+        );
+        suite(
+            "Nat32",
+            func() {
+                bidirectional_byte_comparison<Nat32>(
+                    { from = ByteUtils.LE.fromNat32; to = ByteUtils.LE.toNat32 },
+                    { from = ByteUtils.BE.fromNat32; to = ByteUtils.BE.toNat32 },
+                    [
+                        (0x00000000, [0x00, 0x00, 0x00, 0x00]),
+                        (0x00000001, [0x01, 0x00, 0x00, 0x00]),
+                        (0x000000FF, [0xFF, 0x00, 0x00, 0x00]),
+                        (0x00000100, [0x00, 0x01, 0x00, 0x00]),
+                        (0x12345678, [0x78, 0x56, 0x34, 0x12]),
+                        (0x7FFFFFFF, [0xFF, 0xFF, 0xFF, 0x7F]),
+                        (0x80000000, [0x00, 0x00, 0x00, 0x80]),
+                        (0xFFFFFFFF, [0xFF, 0xFF, 0xFF, 0xFF]),
+                    ],
+                    Nat32.equal,
+                    Nat32.toText,
+                );
+            },
+        );
+
+        suite(
+            "Nat64",
+            func() {
+                bidirectional_byte_comparison<Nat64>(
+                    { from = ByteUtils.LE.fromNat64; to = ByteUtils.LE.toNat64 },
+                    { from = ByteUtils.BE.fromNat64; to = ByteUtils.BE.toNat64 },
+                    [
+                        (0x0000000000000000, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (0x0000000000000001, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (0x00000000000000FF, [0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (0x0000000000000100, [0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (0x123456789ABCDEF0, [0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12]),
+                        (0x7FFFFFFFFFFFFFFF, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
+                        (0x8000000000000000, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80]),
+                        (0xFFFFFFFFFFFFFFFF, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]),
+                    ],
+                    Nat64.equal,
+                    Nat64.toText,
+                );
+            },
+        );
+
+        suite(
+            "Int8",
+            func() {
+                bidirectional_byte_comparison<Int8>(
+                    { from = ByteUtils.LE.fromInt8; to = ByteUtils.LE.toInt8 },
+                    { from = ByteUtils.BE.fromInt8; to = ByteUtils.BE.toInt8 },
+                    [
+                        (-128, [0x80]),
+                        (-127, [0x81]),
+                        (-1, [0xFF]),
+                        (0, [0x00]),
+                        (1, [0x01]),
+                        (127, [0x7F]),
+                    ],
+                    Int8.equal,
+                    Int8.toText,
+                );
+            },
+        );
+
+        suite(
+            "Int16",
+            func() {
+                bidirectional_byte_comparison<Int16>(
+                    { from = ByteUtils.LE.fromInt16; to = ByteUtils.LE.toInt16 },
+                    { from = ByteUtils.BE.fromInt16; to = ByteUtils.BE.toInt16 },
+                    [
+                        (-32768, [0x00, 0x80]),
+                        (-32767, [0x01, 0x80]),
+                        (-1, [0xFF, 0xFF]),
+                        (0, [0x00, 0x00]),
+                        (1, [0x01, 0x00]),
+                        (32767, [0xFF, 0x7F]),
+                        (0x1234, [0x34, 0x12]),
+                        (-0x1234, [0xCC, 0xED]),
+                    ],
+                    Int16.equal,
+                    Int16.toText,
+                );
+            },
+        );
+
+        suite(
+            "Int32",
+            func() {
+                bidirectional_byte_comparison<Int32>(
+                    { from = ByteUtils.LE.fromInt32; to = ByteUtils.LE.toInt32 },
+                    { from = ByteUtils.BE.fromInt32; to = ByteUtils.BE.toInt32 },
+                    [
+                        (-2147483648, [0x00, 0x00, 0x00, 0x80]),
+                        (-2147483647, [0x01, 0x00, 0x00, 0x80]),
+                        (-1, [0xFF, 0xFF, 0xFF, 0xFF]),
+                        (0, [0x00, 0x00, 0x00, 0x00]),
+                        (1, [0x01, 0x00, 0x00, 0x00]),
+                        (2147483647, [0xFF, 0xFF, 0xFF, 0x7F]),
+                        (0x12345678, [0x78, 0x56, 0x34, 0x12]),
+                        (-0x12345678, [0x88, 0xA9, 0xCB, 0xED]),
+                    ],
+                    Int32.equal,
+                    Int32.toText,
+                );
+            },
+        );
+
+        suite(
+            "Int64",
+            func() {
+                bidirectional_byte_comparison<Int64>(
+                    { from = ByteUtils.LE.fromInt64; to = ByteUtils.LE.toInt64 },
+                    { from = ByteUtils.BE.fromInt64; to = ByteUtils.BE.toInt64 },
+                    [
+                        (-9223372036854775808, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80]),
+                        (-9223372036854775807, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80]),
+                        (-1, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]),
+                        (0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (1, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (9223372036854775807, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
+                        (0x123456789ABCDEF0, [0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12]),
+                    ],
+                    Int64.equal,
+                    Int64.toText,
+                );
+            },
+        );
+
+        suite(
+            "Float",
+            func() {
+                bidirectional_byte_comparison<Float>(
+                    { from = ByteUtils.LE.fromFloat; to = ByteUtils.LE.toFloat },
+                    { from = ByteUtils.BE.fromFloat; to = ByteUtils.BE.toFloat },
+                    [
+                        (0.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                        (1.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F]),
+                        (-1.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0xBF]),
+                        (2.0, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40]),
+                        (0.5, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x3F]),
+                        (3.14159265359, [0xEA, 0x2E, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40]),
+                        // (2.718281828, [0x69, 0x57, 0x14, 0x8B, 0x0A, 0xBF, 0x05, 0x40]),
+                    ],
+                    func(a : Float, b : Float) : Bool {
+                        let epsilon : Float = 0.0000001;
+                        Float.equalWithin(a, b, epsilon);
+                    },
+                    Float.toText,
+                );
+            },
+        );
+
+        test(
+            "Extended Float test vectors - special values",
+            func() {
+
+                // Test very small and very large numbers
+                let verySmall = 1e-300;
+                let veryLarge = 1e300;
+
+                let smallBytes = ByteUtils.LE.fromFloat(verySmall);
+                let smallRestored = ByteUtils.LE.toFloat(smallBytes.vals());
+                assert smallRestored == verySmall;
+
+                let largeBytes = ByteUtils.LE.fromFloat(veryLarge);
+                let largeRestored = ByteUtils.LE.toFloat(largeBytes.vals());
+                assert largeRestored == veryLarge;
+            },
+        );
+
+        test(
+            "Mathematical constants test vectors",
+            func() {
+                // Test mathematical constants with high precision
+                let constants = [
+                    3.141592653589793, // π
+                    2.718281828459045, // e
+                    1.414213562373095, // √2
+                    1.618033988749895, // φ (golden ratio)
+                    0.5772156649015329, // γ (Euler-Mascheroni constant)
+                ];
+
+                for (value in constants.vals()) {
+                    // Test Little Endian
+                    let leBytesFloat = ByteUtils.LE.fromFloat(value);
+                    let leRestoredFloat = ByteUtils.LE.toFloat(leBytesFloat.vals());
+                    assert leRestoredFloat == value;
+
+                    // Test Big Endian
+                    let beBytesFloat = ByteUtils.BE.fromFloat(value);
+                    let beRestoredFloat = ByteUtils.BE.toFloat(beBytesFloat.vals());
+                    assert beRestoredFloat == value;
+                };
+            },
+        );
+
+        test(
+            "Powers of 10 test vectors",
+            func() {
+                // Test powers of 10 from 10^-15 to 10^15
+                let powers = [
+                    1e-15,
+                    1e-10,
+                    1e-5,
+                    1e-1,
+                    1e0,
+                    1e1,
+                    1e2,
+                    1e3,
+                    1e4,
+                    1e5,
+                    1e6,
+                    1e7,
+                    1e8,
+                    1e9,
+                    1e10,
+                    1e11,
+                    1e12,
+                    1e13,
+                    1e14,
+                    1e15,
+                ];
+
+                for (value in powers.vals()) {
+                    // Test Little Endian
+                    let leBytesFloat = ByteUtils.LE.fromFloat(value);
+                    let leRestoredFloat = ByteUtils.LE.toFloat(leBytesFloat.vals());
+                    assert leRestoredFloat == value;
+
+                    // Test Big Endian
+                    let beBytesFloat = ByteUtils.BE.fromFloat(value);
+                    let beRestoredFloat = ByteUtils.BE.toFloat(beBytesFloat.vals());
+                    assert beRestoredFloat == value;
+
+                    // Test negative values
+                    let negValue = -value;
+                    let leNegBytes = ByteUtils.LE.fromFloat(negValue);
+                    let leNegRestored = ByteUtils.LE.toFloat(leNegBytes.vals());
+                    assert leNegRestored == negValue;
+
+                    let beNegBytes = ByteUtils.BE.fromFloat(negValue);
+                    let beNegRestored = ByteUtils.BE.toFloat(beNegBytes.vals());
+                    assert beNegRestored == negValue;
+                };
+            },
+        );
+
+        test(
+            "Fraction test vectors",
+            func() {
+                // Test common fractions
+                let fractions = [
+                    1.0 / 3.0, // 0.333...
+                    2.0 / 3.0, // 0.666...
+                    1.0 / 7.0, // 0.142857...
+                    22.0 / 7.0, // π approximation
+                    355.0 / 113.0, // Better π approximation
+                    1.0 / 9.0, // 0.111...
+                    5.0 / 6.0, // 0.833...
+                    7.0 / 8.0, // 0.875
+                ];
+
+                for (value in fractions.vals()) {
+                    // Test Little Endian
+                    let leBytesFloat = ByteUtils.LE.fromFloat(value);
+                    let leRestoredFloat = ByteUtils.LE.toFloat(leBytesFloat.vals());
+                    assert leRestoredFloat == value;
+
+                    // Test Big Endian
+                    let beBytesFloat = ByteUtils.BE.fromFloat(value);
+                    let beRestoredFloat = ByteUtils.BE.toFloat(beBytesFloat.vals());
+                    assert beRestoredFloat == value;
+                };
             },
         );
     },
