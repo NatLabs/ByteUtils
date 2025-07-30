@@ -1,9 +1,7 @@
 // @testmode wasi
-import Debug "mo:base/Debug";
 import Buffer "mo:base/Buffer";
 import Blob "mo:base/Blob";
 import Text "mo:base/Text";
-import Char "mo:base/Char";
 import Nat "mo:base/Nat";
 import Nat8 "mo:base/Nat8";
 import Int8 "mo:base/Int8";
@@ -15,14 +13,10 @@ import Float "mo:base/Float";
 import Nat64 "mo:base/Nat64";
 import Nat16 "mo:base/Nat16";
 import Nat32 "mo:base/Nat32";
-import Int "mo:base/Int";
 import Bool "mo:base/Bool";
-import Order "mo:base/Order";
-import Array "mo:base/Array";
 
 import { test; suite } "mo:test";
 import Itertools "mo:itertools/Iter";
-import PeekableIter "mo:itertools/PeekableIter";
 import BpTree "mo:augmented-btrees/BpTree";
 import Cmp "mo:augmented-btrees/Cmp";
 

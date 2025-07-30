@@ -261,6 +261,12 @@ suite(
 
                     let decoded = ByteUtils.fromLEB128_64(encoded.vals());
                     assert decoded == value;
+
+                    let encodedNat = ByteUtils.toLEB128(Nat64.toNat(value));
+                    assert encodedNat == expectedBytes;
+
+                    let decodedNat = ByteUtils.fromLEB128(encoded.vals());
+                    assert decodedNat == Nat64.toNat(value);
                 };
             },
         );
@@ -299,6 +305,12 @@ suite(
 
                     let decoded = ByteUtils.fromSLEB128_64(encoded.vals());
                     assert decoded == value;
+
+                    let encodedInt = ByteUtils.toSLEB128(Int64.toInt(value));
+                    assert encodedInt == expectedBytes;
+
+                    let decodedInt = ByteUtils.fromSLEB128(encoded.vals());
+                    assert decodedInt == Int64.toInt(value);
                 };
             },
         );

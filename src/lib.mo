@@ -2,7 +2,6 @@ import Prim "mo:prim";
 
 import B "mo:base/Buffer";
 import Iter "mo:base/Iter";
-import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
 import Nat16 "mo:base/Nat16";
@@ -467,6 +466,18 @@ module ByteUtils {
         Buffer.readLEB128_64(buffer);
     };
 
+    public func toLEB128(n : Nat) : [Nat8] {
+        let buffer = B.Buffer<Nat8>(10);
+        Buffer.addLEB128_nat(buffer, n);
+        B.toArray(buffer);
+    };
+
+    public func fromLEB128(bytes : Bytes) : Nat {
+        let buffer = B.Buffer<Nat8>(10);
+        for (byte in bytes) { buffer.add(byte) };
+        Buffer.readLEB128_nat(buffer);
+    };
+
     public func toSLEB128_64(n : Int64) : [Nat8] {
         let buffer = B.Buffer<Nat8>(10);
         Buffer.addSLEB128_64(buffer, n);
@@ -477,6 +488,18 @@ module ByteUtils {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readSLEB128_64(buffer);
+    };
+
+    public func toSLEB128(n : Int) : [Nat8] {
+        let buffer = B.Buffer<Nat8>(10);
+        Buffer.addSLEB128_int(buffer, n);
+        B.toArray(buffer);
+    };
+
+    public func fromSLEB128(bytes : Bytes) : Int {
+        let buffer = B.Buffer<Nat8>(10);
+        for (byte in bytes) { buffer.add(byte) };
+        Buffer.readSLEB128_int(buffer);
     };
 
     public module Buffer {
@@ -992,6 +1015,7 @@ module ByteUtils {
         // https://en.wikipedia.org/wiki/LEB128
         // limited to 64-bit unsigned integers
         // more performant than the general unsigned_leb128
+        /// Add ULEB128 encoded number to the end of a buffer
         public func addLEB128_64(buffer : BufferLike<Nat8>, n : Nat64) {
             var value = n;
             while (value >= 0x80) {
@@ -1002,7 +1026,8 @@ module ByteUtils {
 
         };
 
-        // Write LEB128 at a specific offset
+        /// Write ULEB128 encoded value at a specific offset.
+        /// Traps if the buffer is smaller than the offset and number of encoded bytes.
         public func writeLEB128_64(buffer : BufferLike<Nat8>, offset : Nat, n : Nat64) {
             var n64 : Nat64 = n;
             var index = offset;
@@ -1019,9 +1044,36 @@ module ByteUtils {
 
         };
 
+        /// Add ULEB128 encoded Nat to the end of the buffer.
+        public func addLEB128_nat(buffer : BufferLike<Nat8>, n : Nat) {
+            var value = n;
+            while (value >= 0x80) {
+                buffer.add(Nat8.fromNat(value % 0x80) + 0x80);
+                value /= 0x80;
+            };
+            buffer.add(Nat8.fromNat(value));
+
+        };
+
+        /// Write ULEB128 encoded value at a sepcific offset.
+        /// Traps if the buffer is smaller than the offset and number of encoded bytes.
+        public func writeLEB128_nat(buffer : BufferLike<Nat8>, offset : Nat, n : Nat) {
+            var value = n;
+            var index = offset;
+
+            while (value >= 0x80) {
+                buffer.put(index, Nat8.fromNat(value % 0x80) + 0x80);
+                index += 1;
+                value /= 0x80;
+            };
+            buffer.put(index, Nat8.fromNat(value));
+
+        };
+
         // https://en.wikipedia.org/wiki/LEB128
         // limited to 64-bit signed integers
         // more performant than the general signed_leb128
+        /// Add SLEB128 encoded value to the end of a buffer.
         public func addSLEB128_64(buffer : BufferLike<Nat8>, _n : Int64) {
             let n = Int64.toInt(_n);
             let is_negative = n < 0;
@@ -1062,7 +1114,8 @@ module ByteUtils {
             };
         };
 
-        // Write SLEB128 at a specific offset
+        /// Write SLEB128 encoded value at a specific offset.
+        /// Traps if the buffer is smaller than the offset and number of encoded bytes.
         public func writeSLEB128_64(buffer : BufferLike<Nat8>, offset : Nat, _n : Int64) {
             let n = Int64.toInt(_n);
             let is_negative = n < 0;
@@ -1106,7 +1159,78 @@ module ByteUtils {
 
         };
 
+        /// Add SLEB128 encoded value to the end of a buffer.
+        public func addSLEB128_int(buffer : BufferLike<Nat8>, n : Int) {
+            var value = n;
+            let is_negative = value < 0;
+
+            // Convert to correct absolute value representation first
+            var more = true;
+
+            while (more) {
+                // Get lowest 7 bits
+                var byte : Nat8 = Nat8.fromIntWrap(value) & 0x7F;
+
+                // Shift for next iteration
+                if (is_negative) {
+                    value := (value - 127) / 128; // -127 to round down instead of towards 0
+                } else {
+                    value /= 128;
+                };
+
+                // Determine if we need more bytes
+                if (
+                    (value == 0 and (byte & 0x40) == 0) or
+                    (value == -1 and (byte & 0x40) != 0)
+                ) {
+                    more := false;
+                } else {
+                    byte |= 0x80; // Set continuation bit
+                };
+
+                buffer.add(byte);
+            };
+        };
+
+        /// Write SLEB128 encoded value at a specific offset.
+        /// Traps if the buffer is smaller than the offset and number of encoded bytes.
+        public func writeSLEB128_int(buffer : BufferLike<Nat8>, offset : Nat, n : Int) {
+            var value = n;
+            let is_negative = value < 0;
+            var index = offset;
+
+            // Convert to correct absolute value representation first
+            var more = true;
+
+            while (more) {
+                // Get lowest 7 bits
+                var byte : Nat8 = Nat8.fromIntWrap(value) & 0x7F;
+
+                // Shift for next iteration
+                if (is_negative) {
+                    value := (value - 127) / 128; // -127 to round down instead of towards 0
+                } else {
+                    value /= 128;
+                };
+
+                // Determine if we need more bytes
+                if (
+                    (value == 0 and (byte & 0x40) == 0) or
+                    (value == -1 and (byte & 0x40) != 0)
+                ) {
+                    more := false;
+                } else {
+                    byte |= 0x80; // Set continuation bit
+                };
+
+                buffer.put(index, byte);
+                index += 1;
+            };
+        };
+
         // https://en.wikipedia.org/wiki/LEB128
+        /// Read unsigned LEB128 value from buffer
+        /// Traps if end of buffer is reached before value is completely decoded
         public func readLEB128_64(buffer : BufferLike<Nat8>) : Nat64 {
             var n64 : Nat64 = 0;
             var shift : Nat64 = 0;
@@ -1126,6 +1250,29 @@ module ByteUtils {
             n64;
         };
 
+        /// Read unsigned LEB128 value from buffer
+        /// Traps if end of buffer is reached before value is completely decoded
+        public func readLEB128_nat(buffer : BufferLike<Nat8>) : Nat {
+            var n : Nat = 0;
+            var shift : Nat = 1;
+            var i = 0;
+
+            label decoding_leb loop {
+                let byte = buffer.get(i);
+                i += 1;
+
+                n += (Nat8.toNat(byte & 0x7f)) * shift;
+
+                if (byte & 0x80 == 0) break decoding_leb;
+                shift *= 128;
+
+            };
+
+            n;
+        };
+
+        /// Read signed LEB128 value from buffer
+        /// Traps if end of buffer is reached before value is completely decoded
         public func readSLEB128_64(buffer : BufferLike<Nat8>) : Int64 {
             var result : Nat64 = 0;
             var shift : Nat64 = 0;
@@ -1153,6 +1300,35 @@ module ByteUtils {
             };
 
             Int64.fromNat64(result);
+        };
+
+        public func readSLEB128_int(buffer : BufferLike<Nat8>) : Int {
+            var result : Int = 0;
+            var shift : Int = 1;
+            var byte : Nat8 = 0;
+            var i = 0;
+
+            label analyzing loop {
+                byte := buffer.get(i);
+                i += 1;
+
+                // Add this byte's 7 bits to the result
+                result += Nat8.toNat(byte & 0x7F) * shift;
+                shift *= 128;
+
+                // If continuation bit is not set, we're done reading bytes
+                if ((byte & 0x80) == 0) {
+                    break analyzing;
+                };
+            };
+
+            // Sign extend if this is a negative number
+            if (byte & 0x40 != 0) {
+                // Fill the rest with 1s (sign extension)
+                result -= shift;
+            };
+
+            result;
         };
 
     };
