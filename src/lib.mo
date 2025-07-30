@@ -462,6 +462,7 @@ module ByteUtils {
     };
 
     /// Decodes a ULEB128-encoded `Nat64` from a byte iterator.
+    /// Traps if end of buffer is reached before value is completely decoded.
     public func fromLEB128_64(bytes : Bytes) : Nat64 {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
@@ -476,6 +477,7 @@ module ByteUtils {
     };
 
     /// Decodes a ULEB128-encoded `Nat` from a byte iterator.
+    /// Traps if end of buffer is reached before value is completely decoded.
     public func fromLEB128(bytes : Bytes) : Nat {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
@@ -490,6 +492,7 @@ module ByteUtils {
     };
 
     /// Decodes an SLEB128-encoded `Int64` from a byte iterator.
+    /// Traps if end of buffer is reached before value is completely decoded.
     public func fromSLEB128_64(bytes : Bytes) : Int64 {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
@@ -504,6 +507,7 @@ module ByteUtils {
     };
 
     /// Decodes an SLEB128-encoded `Int` from a byte iterator.
+    /// Traps if end of buffer is reached before value is completely decoded.
     public func fromSLEB128(bytes : Bytes) : Int {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
@@ -1063,7 +1067,7 @@ module ByteUtils {
 
         };
 
-        /// Write ULEB128 encoded value at a sepcific offset.
+        /// Write ULEB128 encoded value at a specific offset.
         /// Traps if the buffer is smaller than the offset and number of encoded bytes.
         public func writeLEB128_nat(buffer : BufferLike<Nat8>, offset : Nat, n : Nat) {
             var value = n;
@@ -1237,8 +1241,8 @@ module ByteUtils {
         };
 
         // https://en.wikipedia.org/wiki/LEB128
-        /// Read unsigned LEB128 value from buffer
-        /// Traps if end of buffer is reached before value is completely decoded
+        /// Read unsigned LEB128 value from buffer.
+        /// Traps if end of buffer is reached before value is completely decoded.
         public func readLEB128_64(buffer : BufferLike<Nat8>) : Nat64 {
             var n64 : Nat64 = 0;
             var shift : Nat64 = 0;
@@ -1258,8 +1262,8 @@ module ByteUtils {
             n64;
         };
 
-        /// Read unsigned LEB128 value from buffer
-        /// Traps if end of buffer is reached before value is completely decoded
+        /// Read unsigned LEB128 value from buffer.
+        /// Traps if end of buffer is reached before value is completely decoded.
         public func readLEB128_nat(buffer : BufferLike<Nat8>) : Nat {
             var n : Nat = 0;
             var shift : Nat = 1;
@@ -1279,8 +1283,8 @@ module ByteUtils {
             n;
         };
 
-        /// Read signed LEB128 value from buffer
-        /// Traps if end of buffer is reached before value is completely decoded
+        /// Read signed LEB128 value from buffer.
+        /// Traps if end of buffer is reached before value is completely decoded.
         public func readSLEB128_64(buffer : BufferLike<Nat8>) : Int64 {
             var result : Nat64 = 0;
             var shift : Nat64 = 0;
@@ -1310,6 +1314,8 @@ module ByteUtils {
             Int64.fromNat64(result);
         };
 
+        /// Read signed LEB128 value from buffer.
+        /// Traps if end of buffer is reached before value is completely decoded.
         public func readSLEB128_int(buffer : BufferLike<Nat8>) : Int {
             var result : Int = 0;
             var shift : Int = 1;
