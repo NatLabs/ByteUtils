@@ -454,48 +454,56 @@ module ByteUtils {
     public let LE = LittleEndian;
     public let BE = BigEndian;
 
+    /// Encodes a `Nat64` into ULEB128 format.
     public func toLEB128_64(n64 : Nat64) : [Nat8] {
         let buffer = B.Buffer<Nat8>(10);
         Buffer.addLEB128_64(buffer, n64);
         B.toArray(buffer);
     };
 
+    /// Decodes a ULEB128-encoded `Nat64` from a byte iterator.
     public func fromLEB128_64(bytes : Bytes) : Nat64 {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readLEB128_64(buffer);
     };
 
+    /// Encodes a `Nat` into ULEB128 format.
     public func toLEB128(n : Nat) : [Nat8] {
         let buffer = B.Buffer<Nat8>(10);
         Buffer.addLEB128_nat(buffer, n);
         B.toArray(buffer);
     };
 
+    /// Decodes a ULEB128-encoded `Nat` from a byte iterator.
     public func fromLEB128(bytes : Bytes) : Nat {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readLEB128_nat(buffer);
     };
 
+    /// Encodes an `Int64` into SLEB128 format.
     public func toSLEB128_64(n : Int64) : [Nat8] {
         let buffer = B.Buffer<Nat8>(10);
         Buffer.addSLEB128_64(buffer, n);
         B.toArray(buffer);
     };
 
+    /// Decodes an SLEB128-encoded `Int64` from a byte iterator.
     public func fromSLEB128_64(bytes : Bytes) : Int64 {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readSLEB128_64(buffer);
     };
 
+    /// Encodes an `Int` into SLEB128 format.
     public func toSLEB128(n : Int) : [Nat8] {
         let buffer = B.Buffer<Nat8>(10);
         Buffer.addSLEB128_int(buffer, n);
         B.toArray(buffer);
     };
 
+    /// Decodes an SLEB128-encoded `Int` from a byte iterator.
     public func fromSLEB128(bytes : Bytes) : Int {
         let buffer = B.Buffer<Nat8>(10);
         for (byte in bytes) { buffer.add(byte) };
