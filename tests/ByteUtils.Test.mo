@@ -261,6 +261,34 @@ suite(
 
                     let decoded = ByteUtils.fromLEB128_64(encoded.vals());
                     assert decoded == value;
+
+                    let encodedNat = ByteUtils.toLEB128(Nat64.toNat(value));
+                    assert encodedNat == expectedBytes;
+
+                    let decodedNat = ByteUtils.fromLEB128(encoded.vals());
+                    assert decodedNat == Nat64.toNat(value);
+                };
+            },
+        );
+
+        test(
+            "LEB128 large values",
+            func() {
+                let testVectors : [(Nat, [Nat8])] = [
+                    (2 ** 64, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02]),
+                    (2 ** 65, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x04]),
+                    (2 ** 70, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01]),
+                    (2 ** 64 + 1, [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02]),
+                    (123456789012345678901234567890, [0xd2, 0x95, 0xfc, 0xf1, 0xe4, 0x9d, 0xf8, 0xb9, 0xc3, 0xed, 0xbf, 0xc8, 0xee, 0x31]),
+                ];
+
+                for ((value, expectedBytes) in testVectors.vals()) {
+                    let encoded = ByteUtils.toLEB128(value);
+                    Debug.print(debug_show ("leb128 large", value, encoded, expectedBytes));
+                    assert encoded == expectedBytes;
+
+                    let decodedNat = ByteUtils.fromLEB128(encoded.vals());
+                    assert decodedNat == value;
                 };
             },
         );
@@ -299,6 +327,39 @@ suite(
 
                     let decoded = ByteUtils.fromSLEB128_64(encoded.vals());
                     assert decoded == value;
+
+                    let encodedInt = ByteUtils.toSLEB128(Int64.toInt(value));
+                    assert encodedInt == expectedBytes;
+
+                    let decodedInt = ByteUtils.fromSLEB128(encoded.vals());
+                    assert decodedInt == Int64.toInt(value);
+                };
+            },
+        );
+
+        test(
+            "SLEB128 large values",
+            func() {
+                let testVectors : [(Int, [Nat8])] = [
+                    (2 ** 64, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02]),
+                    (2 ** 65, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x04]),
+                    (2 ** 70, [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01]),
+                    (2 ** 64 + 1, [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02]),
+                    (123456789012345678901234567890, [0xd2, 0x95, 0xfc, 0xf1, 0xe4, 0x9d, 0xf8, 0xb9, 0xc3, 0xed, 0xbf, 0xc8, 0xee, 0x31]),
+                    (-1 * (2 ** 64), [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7e]),
+                    (-1 * (2 ** 65), [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7c]),
+                    (-1 * (2 ** 70), [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7f]),
+                    (-1 * (2 ** 64 + 1), [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7d]),
+                    (-123456789012345678901234567890, [0xae, 0xea, 0x83, 0x8e, 0x9b, 0xe2, 0x87, 0xc6, 0xbc, 0x92, 0xc0, 0xb7, 0x91, 0x4e]),
+                ];
+
+                for ((value, expectedBytes) in testVectors.vals()) {
+                    let encoded = ByteUtils.toSLEB128(value);
+                    Debug.print(debug_show ("sleb128 large", value, encoded, expectedBytes));
+                    assert encoded == expectedBytes;
+
+                    let decodedNat = ByteUtils.fromSLEB128(encoded.vals());
+                    assert decodedNat == value;
                 };
             },
         );

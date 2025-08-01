@@ -3,7 +3,7 @@ name = "byte-utils"
 version = "0.0.1"
 license = "MIT"
 description = "A collection of utilities for byte manipulation and conversion."
-keywords = ["leb128", "endian"]
+keywords = [ "encoding", "decoding", "conversion", "endian", "LEB128", "ULEB128", "SLEB128"]
 repository = "https://github.com/NatLabs/ByteUtils"
 
 [dependencies]
