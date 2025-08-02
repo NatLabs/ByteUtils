@@ -14,6 +14,7 @@ import Int64 "mo:base/Int64";
 import Int "mo:base/Int";
 import Nat "mo:base/Nat";
 import Debug "mo:base/Debug";
+import BInterface "mo:buffer";
 
 import FloatX "mo:xtended-numbers/FloatX";
 
@@ -55,17 +56,6 @@ module ByteUtils {
         fromInt32 : (Int32) -> [Nat8];
         fromInt64 : (Int64) -> [Nat8];
         fromFloat : (Float) -> [Nat8];
-    };
-
-    type Writable<T> = {
-        write : (T) -> ();
-    };
-    private func bufferToWritable<T>(buffer : B.Buffer<T>) : Writable<T> {
-        {
-            write = func(value : T) {
-                buffer.add(value);
-            };
-        };
     };
 
     public module LittleEndian {
@@ -170,7 +160,7 @@ module ByteUtils {
             let fx = FloatX.fromFloat(f, #f64);
             let buffer = B.Buffer<Nat8>(8);
 
-            FloatX.toBytesBuffer(bufferToWritable(buffer), fx, #lsb);
+            FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #lsb);
             B.toArray(buffer);
         };
 
@@ -275,7 +265,7 @@ module ByteUtils {
             let fx = FloatX.fromFloat(f, #f64);
             let buffer = B.Buffer<Nat8>(8);
 
-            FloatX.toBytesBuffer(bufferToWritable(buffer), fx, #msb);
+            FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #msb);
             B.toArray(buffer);
         };
 
@@ -338,7 +328,7 @@ module ByteUtils {
             // IEEE-754 sortable encoding
             let fx = FloatX.fromFloat(f, #f64);
             let buffer = B.Buffer<Nat8>(8);
-            FloatX.toBytesBuffer(bufferToWritable(buffer), fx, #msb); // Use big-endian
+            FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #msb); // Use big-endian
 
             let bytes = B.toArray(buffer);
 
@@ -584,7 +574,7 @@ module ByteUtils {
 
             public func addFloat(buffer : B.Buffer<Nat8>, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
-                FloatX.toBytesBuffer(bufferToWritable(buffer), fx, #lsb);
+                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #lsb);
             };
 
             // Add new write methods (write at specific offset)
@@ -640,7 +630,7 @@ module ByteUtils {
             public func writeFloat(buffer : BufferLike<Nat8>, offset : Nat, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
                 let tempBuffer = B.Buffer<Nat8>(8);
-                FloatX.toBytesBuffer(bufferToWritable(tempBuffer), fx, #lsb);
+                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(tempBuffer), fx, #lsb);
 
                 // Copy from temp buffer to target buffer at offset
                 for (i in Iter.range(0, 7)) {
@@ -754,7 +744,7 @@ module ByteUtils {
 
             public func addFloat(buffer : B.Buffer<Nat8>, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
-                FloatX.toBytesBuffer(bufferToWritable(buffer), fx, #msb);
+                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #msb);
             };
 
             // Add new write methods (write at specific offset)
@@ -810,7 +800,7 @@ module ByteUtils {
             public func writeFloat(buffer : B.Buffer<Nat8>, offset : Nat, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
                 let tempBuffer = B.Buffer<Nat8>(8);
-                FloatX.toBytesBuffer(bufferToWritable(tempBuffer), fx, #msb);
+                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(tempBuffer), fx, #msb);
 
                 // Copy from temp buffer to target buffer at offset
                 for (i in Iter.range(0, 7)) {
