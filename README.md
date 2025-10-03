@@ -142,14 +142,14 @@ Saving results to .bench/LittleEndian.bench.json
 
 <details>
 
-<summary>bench/Sorted.bench.mo $({\color{gray}0\%})$</summary>
+<summary>bench/Sorted.bench.mo $({\color{green}-0.00\%})$</summary>
 
 ### ByteUtils library Benchmarks: Sorted Encodings
 
 _Benchmarking the performance with 10k calls for type-to-bytes and bytes-to-type conversions using sortable encodings_
 
 
-Instructions: ${\color{gray}0\\%}$
+Instructions: ${\color{green}-0.00\\%}$
 Heap: ${\color{gray}0\\%}$
 Stable Memory: ${\color{gray}0\\%}$
 Garbage Collection: ${\color{gray}0\\%}$
@@ -157,17 +157,17 @@ Garbage Collection: ${\color{gray}0\\%}$
 
 **Instructions**
 
-|       |                      Type to Bytes |                      Bytes to Type |
-| :---- | ---------------------------------: | ---------------------------------: |
-| Nat8  |   3_162_088 $({\color{gray}0\\%})$ |  10_592_237 $({\color{gray}0\\%})$ |
-| Nat16 |   4_942_924 $({\color{gray}0\\%})$ |  12_353_072 $({\color{gray}0\\%})$ |
-| Nat32 |   5_367_788 $({\color{gray}0\\%})$ |  17_892_685 $({\color{gray}0\\%})$ |
-| Nat64 |   5_964_552 $({\color{gray}0\\%})$ |  27_014_698 $({\color{gray}0\\%})$ |
-| Int8  |   3_205_064 $({\color{gray}0\\%})$ |  10_595_209 $({\color{gray}0\\%})$ |
-| Int16 |   4_965_900 $({\color{gray}0\\%})$ |  12_356_044 $({\color{gray}0\\%})$ |
-| Int32 |   5_391_676 $({\color{gray}0\\%})$ |  17_988_367 $({\color{gray}0\\%})$ |
-| Int64 |   5_987_687 $({\color{gray}0\\%})$ |  27_077_670 $({\color{gray}0\\%})$ |
-| Float | 338_943_048 $({\color{gray}0\\%})$ | 344_788_230 $({\color{gray}0\\%})$ |
+|       |                           Type to Bytes |                      Bytes to Type |
+| :---- | --------------------------------------: | ---------------------------------: |
+| Nat8  |        3_162_088 $({\color{gray}0\\%})$ |  10_592_237 $({\color{gray}0\\%})$ |
+| Nat16 |        4_942_924 $({\color{gray}0\\%})$ |  12_353_072 $({\color{gray}0\\%})$ |
+| Nat32 |        5_367_788 $({\color{gray}0\\%})$ |  17_892_685 $({\color{gray}0\\%})$ |
+| Nat64 |        5_964_552 $({\color{gray}0\\%})$ |  27_014_698 $({\color{gray}0\\%})$ |
+| Int8  |        3_205_064 $({\color{gray}0\\%})$ |  10_595_209 $({\color{gray}0\\%})$ |
+| Int16 |        4_965_900 $({\color{gray}0\\%})$ |  12_356_044 $({\color{gray}0\\%})$ |
+| Int32 |        5_391_676 $({\color{gray}0\\%})$ |  17_988_367 $({\color{gray}0\\%})$ |
+| Int64 |        5_987_687 $({\color{gray}0\\%})$ |  27_077_670 $({\color{gray}0\\%})$ |
+| Float | 338_873_048 $({\color{green}-0.02\\%})$ | 344_788_230 $({\color{gray}0\\%})$ |
 
 
 **Heap**

@@ -2,7 +2,7 @@
   "version": 1,
   "moc": "0.14.13",
   "replica": "dfx",
-  "replicaVersion": "0.28.0",
+  "replicaVersion": "0.29.2",
   "gc": "incremental",
   "forceGc": true,
   "results": [

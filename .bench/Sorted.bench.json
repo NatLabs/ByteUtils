@@ -2,7 +2,7 @@
   "version": 1,
   "moc": "0.14.13",
   "replica": "dfx",
-  "replicaVersion": "0.28.0",
+  "replicaVersion": "0.29.2",
   "gc": "incremental",
   "forceGc": true,
   "results": [
@@ -251,7 +251,7 @@
       {
         "rts_stable_memory_size": 0,
         "stable_memory_size": 0,
-        "instructions": 338943048,
+        "instructions": 338873048,
         "rts_memory_size": 0,
         "rts_total_allocation": 16650072,
         "rts_collector_instructions": 6276,
