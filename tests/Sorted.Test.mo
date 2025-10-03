@@ -1,19 +1,19 @@
 // @testmode wasi
-import Buffer "mo:base/Buffer";
-import Blob "mo:base/Blob";
-import Text "mo:base/Text";
-import Nat "mo:base/Nat";
-import Nat8 "mo:base/Nat8";
-import Int8 "mo:base/Int8";
-import Iter "mo:base/Iter";
-import Int32 "mo:base/Int32";
-import Int16 "mo:base/Int16";
-import Int64 "mo:base/Int64";
-import Float "mo:base/Float";
-import Nat64 "mo:base/Nat64";
-import Nat16 "mo:base/Nat16";
-import Nat32 "mo:base/Nat32";
-import Bool "mo:base/Bool";
+import Buffer "mo:base@0.14.13/Buffer";
+import Blob "mo:base@0.14.13/Blob";
+import Text "mo:base@0.14.13/Text";
+import Nat "mo:base@0.14.13/Nat";
+import Nat8 "mo:base@0.14.13/Nat8";
+import Int8 "mo:base@0.14.13/Int8";
+import Iter "mo:base@0.14.13/Iter";
+import Int32 "mo:base@0.14.13/Int32";
+import Int16 "mo:base@0.14.13/Int16";
+import Int64 "mo:base@0.14.13/Int64";
+import Float "mo:base@0.14.13/Float";
+import Nat64 "mo:base@0.14.13/Nat64";
+import Nat16 "mo:base@0.14.13/Nat16";
+import Nat32 "mo:base@0.14.13/Nat32";
+import Bool "mo:base@0.14.13/Bool";
 
 import { test; suite } "mo:test";
 import Itertools "mo:itertools/Iter";

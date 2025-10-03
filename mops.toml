@@ -7,16 +7,16 @@ keywords = ["encoding", "decoding", "conversion", "uleb128", "sleb128"]
 repository = "https://github.com/NatLabs/ByteUtils"
 
 [dependencies]
-base = "0.14.11"
-xtended-numbers = "2.0.0"
+'base@0.14.13' = "0.14.13"
+'xtended-numbers@2.0.0' = "2.0.0"
 
 [dev-dependencies]
 test = "2.1.1"
 bench = "1.0.0"
 fuzz = "1.0.0"
-augmented-btrees = "0.6.0"
+augmented-btrees = "0.7.1"
 itertools = "0.2.2"
 
 [toolchain]
 moc = "0.14.13"
-wasmtime = "28.0.1"
+wasmtime = "33.0.1"
