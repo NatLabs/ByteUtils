@@ -16,7 +16,7 @@ import Nat "mo:base@0.14.13/Nat";
 import Debug "mo:base@0.14.13/Debug";
 import BInterface "mo:buffer";
 
-import FloatX "mo:xtended-numbers@2.0.0/FloatX";
+import FloatX "mo:xtended-numbers@2.3.0/FloatX";
 
 module ByteUtils {
     /// An iterator of bytes.

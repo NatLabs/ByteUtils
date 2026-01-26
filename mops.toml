@@ -3,20 +3,21 @@ name = "byte-utils"
 version = "0.1.2"
 license = "MIT"
 description = "A collection of utilities for byte manipulation and conversion."
-keywords = ["encoding", "decoding", "conversion", "uleb128", "sleb128"]
+keywords = [ "encoding", "decoding", "conversion", "uleb128", "sleb128" ]
 repository = "https://github.com/NatLabs/ByteUtils"
 
 [dependencies]
-'base@0.14.13' = "0.14.13"
-'xtended-numbers@2.0.0' = "2.0.0"
+"base@0.14.13" = "0.14.13"
+"xtended-numbers@2.3.0" = "2.3.0"
+buffer = "0.1.0"
 
 [dev-dependencies]
-test = "2.1.1"
-bench = "1.0.0"
+test = "2.1.2"
+bench = "2.0.0"
 fuzz = "1.0.0"
 augmented-btrees = "0.7.1"
 itertools = "0.2.2"
 
 [toolchain]
-moc = "0.14.13"
+moc = "1.1.0"
 wasmtime = "33.0.1"
