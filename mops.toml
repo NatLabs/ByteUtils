@@ -7,7 +7,7 @@ keywords = [ "encoding", "decoding", "conversion", "uleb128", "sleb128" ]
 repository = "https://github.com/NatLabs/ByteUtils"
 
 [dependencies]
-core = "https://github.com/caffeinelabs/motoko-core#refs/pull/468/head"
+core = "2.1.0"
 "xtended-numbers@2.3.0" = "2.3.0"
 
 [dev-dependencies]
