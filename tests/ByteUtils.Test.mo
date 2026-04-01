@@ -1,20 +1,31 @@
-import Buffer "mo:base@0.14.13/Buffer";
-import Array "mo:base@0.14.13/Array";
-import Debug "mo:base@0.14.13/Debug";
-import Iter "mo:base@0.14.13/Iter";
-import Nat8 "mo:base@0.14.13/Nat8";
-import Nat16 "mo:base@0.14.13/Nat16";
-import Nat32 "mo:base@0.14.13/Nat32";
-import Nat64 "mo:base@0.14.13/Nat64";
-import Int8 "mo:base@0.14.13/Int8";
-import Int16 "mo:base@0.14.13/Int16";
-import Int32 "mo:base@0.14.13/Int32";
-import Int64 "mo:base@0.14.13/Int64";
-import Float "mo:base@0.14.13/Float";
+import List "mo:core@2.4/List";
+import Array "mo:core@2.4/Array";
+import Debug "mo:core@2.4/Debug";
+import Iter "mo:core@2.4/Iter";
+import Nat8 "mo:core@2.4/Nat8";
+import Nat16 "mo:core@2.4/Nat16";
+import Nat32 "mo:core@2.4/Nat32";
+import Nat64 "mo:core@2.4/Nat64";
+import Int8 "mo:core@2.4/Int8";
+import Int16 "mo:core@2.4/Int16";
+import Int32 "mo:core@2.4/Int32";
+import Int64 "mo:core@2.4/Int64";
+import Float "mo:core@2.4/Float";
+import Nat "mo:core@2.4/Nat";
 import { test; suite } "mo:test";
 
 import ByteUtils "../src";
 import Fuzz "mo:fuzz";
+
+func listBuffer<A>() : ByteUtils.BufferLike<A> {
+    let list = List.empty<A>();
+    {
+        size = func() : Nat = List.size(list);
+        add = func(elem : A) : () = List.add(list, elem);
+        get = func(i : Nat) : A = List.at(list, i);
+        put = func(i : Nat, elem : A) : () = List.put(list, i, elem);
+    };
+};
 
 func xorshift128plus(seed : Nat) : { next() : Nat } {
     var state0 : Nat64 = Nat64.fromNat(seed);
@@ -37,10 +48,10 @@ func xorshift128plus(seed : Nat) : { next() : Nat } {
 let fuzz = Fuzz.create(xorshift128plus(0xdeadbeef));
 let limit = 10_000;
 
-let input = Buffer.Buffer<Nat>(limit);
+let input = List.empty<Nat>();
 
-for (i in Iter.range(0, limit - 1)) {
-    input.add(fuzz.nat.randomRange(0, 2 ** 64 - 1));
+for (i in Nat.rangeInclusive(0, limit - 1)) {
+    List.add(input, fuzz.nat.randomRange(0, 2 ** 64 - 1));
 };
 
 func round_trip_test_on_random_values<A>(
@@ -50,8 +61,8 @@ func round_trip_test_on_random_values<A>(
     is_equal : (A, A) -> Bool,
     to_text : A -> Text,
 ) {
-    for (i in Iter.range(0, limit - 1)) {
-        let original = transform(input.get(i));
+    for (i in Nat.rangeInclusive(0, limit - 1)) {
+        let original = transform(List.at(input, i));
         let bytes = from(original);
         let restored = to(bytes.vals());
 
@@ -68,7 +79,7 @@ func round_trip_endian(
     test(
         "Nat",
         func() {
-            for (i in Iter.range(0, 255)) {
+            for (i in Nat.rangeInclusive(0, 255)) {
                 let original : Nat8 = Nat8.fromNat(i);
                 let bytes = Fns.fromNat8(original);
                 let restored = Fns.toNat8(bytes.vals());
@@ -120,7 +131,7 @@ func round_trip_endian(
     test(
         "Int8",
         func() {
-            for (i in Iter.range(0, 255)) {
+            for (i in Nat.rangeInclusive(0, 255)) {
                 let original : Int8 = Int8.fromInt(i - 128);
                 let bytes = Fns.fromInt8(original);
                 let restored = Fns.toInt8(bytes.vals());
@@ -178,7 +189,7 @@ func round_trip_endian(
                 func(a : Float, b : Float) : Bool {
                     // For floating-point values, we need to account for small precision differences
                     let epsilon : Float = 0.0000001;
-                    Float.equalWithin(a, b, epsilon);
+                    Float.equal(a, b, epsilon);
                 },
                 Float.toText,
             );
@@ -210,8 +221,8 @@ suite(
             func() {
 
                 // Test 10,000 random Nat64 values
-                for (i in Iter.range(0, 9_999)) {
-                    let original : Nat64 = Nat64.fromNat(input.get(i));
+                for (i in Nat.rangeInclusive(0, 9_999)) {
+                    let original : Nat64 = Nat64.fromNat(List.at(input, i));
                     let encoded = ByteUtils.toLEB128_64(original);
                     let decoded = ByteUtils.fromLEB128_64(encoded.vals());
                     assert decoded == original;
@@ -224,8 +235,8 @@ suite(
             func() {
 
                 // Test 10,000 random Int64 values
-                for (i in Iter.range(0, 9_999)) {
-                    let original : Int64 = Int64.fromNat64(Nat64.fromNat(input.get(i)));
+                for (i in Nat.rangeInclusive(0, 9_999)) {
+                    let original : Int64 = Int64.fromNat64(Nat64.fromNat(List.at(input, i)));
                     let encoded = ByteUtils.toSLEB128_64(original);
                     let decoded = ByteUtils.fromSLEB128_64(encoded.vals());
                     assert decoded == original;
@@ -373,7 +384,7 @@ suite(
         test(
             "addNat8/readNat8",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Nat8 = 123;
                 ByteUtils.Buffer.LE.addNat8(buf, value);
                 let restored = ByteUtils.Buffer.LE.readNat8(buf, 0);
@@ -384,7 +395,7 @@ suite(
         test(
             "addNat16/readNat16",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Nat16 = 12345;
                 ByteUtils.Buffer.LE.addNat16(buf, value);
                 let restored = ByteUtils.Buffer.LE.readNat16(buf, 0);
@@ -395,7 +406,7 @@ suite(
         test(
             "addNat32/readNat32",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Nat32 = 1234567890;
                 ByteUtils.Buffer.LE.addNat32(buf, value);
                 let restored = ByteUtils.Buffer.LE.readNat32(buf, 0);
@@ -406,7 +417,7 @@ suite(
         test(
             "addNat64/readNat64",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Nat64 = 1234567890123456789;
                 ByteUtils.Buffer.LE.addNat64(buf, value);
                 let restored = ByteUtils.Buffer.LE.readNat64(buf, 0);
@@ -417,7 +428,7 @@ suite(
         test(
             "addInt8/readInt8",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Int8 = -42;
                 ByteUtils.Buffer.LE.addInt8(buf, value);
                 let restored = ByteUtils.Buffer.LE.readInt8(buf, 0);
@@ -428,7 +439,7 @@ suite(
         test(
             "addInt16/readInt16",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Int16 = -12345;
                 ByteUtils.Buffer.LE.addInt16(buf, value);
                 let restored = ByteUtils.Buffer.LE.readInt16(buf, 0);
@@ -439,7 +450,7 @@ suite(
         test(
             "addInt32/readInt32",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Int32 = -1234567890;
                 ByteUtils.Buffer.LE.addInt32(buf, value);
                 let restored = ByteUtils.Buffer.LE.readInt32(buf, 0);
@@ -450,7 +461,7 @@ suite(
         test(
             "addInt64/readInt64",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 let value : Int64 = -1234567890123456789;
                 ByteUtils.Buffer.LE.addInt64(buf, value);
                 let restored = ByteUtils.Buffer.LE.readInt64(buf, 0);
@@ -461,9 +472,9 @@ suite(
         test(
             "writeNat8/readNat8",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 // Fill buffer with zeros
-                for (_ in Iter.range(0, 9)) {
+                for (_ in Nat.rangeInclusive(0, 9)) {
                     buf.add(0);
                 };
 
@@ -477,9 +488,9 @@ suite(
         test(
             "writeNat16/readNat16",
             func() {
-                let buf = Buffer.Buffer<Nat8>(10);
+                let buf = listBuffer<Nat8>();
                 // Fill buffer with zeros
-                for (_ in Iter.range(0, 9)) {
+                for (_ in Nat.rangeInclusive(0, 9)) {
                     buf.add(0);
                 };
 
@@ -493,7 +504,7 @@ suite(
         test(
             "Multiple values in buffer",
             func() {
-                let buf = Buffer.Buffer<Nat8>(20);
+                let buf = listBuffer<Nat8>();
 
                 let nat8val : Nat8 = 123;
                 let nat16val : Nat16 = 12345;
@@ -524,8 +535,8 @@ suite(
             func() {
 
                 // Test 1,000 random values for buffer operations (reduced from 10k for performance)
-                for (i in Iter.range(0, 999)) {
-                    let buf = Buffer.Buffer<Nat8>(16);
+                for (i in Nat.rangeInclusive(0, 999)) {
+                    let buf = listBuffer<Nat8>();
 
                     let nat16_val : Nat16 = fuzz.nat16.random();
                     let nat32_val : Nat32 = fuzz.nat32.random();
@@ -553,10 +564,10 @@ suite(
         test(
             "writeLEB128_64/readLEB128_64 buffer operations",
             func() {
-                let buf = Buffer.Buffer<Nat8>(32);
+                let buf = listBuffer<Nat8>();
 
                 // Fill buffer with zeros
-                for (_ in Iter.range(0, 31)) {
+                for (_ in Nat.rangeInclusive(0, 31)) {
                     buf.add(0);
                 };
 
@@ -573,13 +584,13 @@ suite(
                     ByteUtils.Buffer.writeLEB128_64(buf, offset, value);
 
                     // Verify bytes were written correctly
-                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                    for (i in Nat.rangeInclusive(0, expectedBytes.size() - 1)) {
                         assert buf.get(offset + i) == expectedBytes[i];
                     };
 
                     // Create a slice buffer to read from
-                    let sliceBuf = Buffer.Buffer<Nat8>(expectedBytes.size());
-                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                    let sliceBuf = listBuffer<Nat8>();
+                    for (i in Nat.rangeInclusive(0, expectedBytes.size() - 1)) {
                         sliceBuf.add(buf.get(offset + i));
                     };
 
@@ -595,11 +606,11 @@ suite(
             func() {
 
                 // Test 100 random values for performance
-                label testing_loop for (i in Iter.range(0, 99)) {
-                    let buf = Buffer.Buffer<Nat8>(32);
+                label testing_loop for (i in Nat.rangeInclusive(0, 99)) {
+                    let buf = listBuffer<Nat8>();
 
                     // Fill buffer with zeros
-                    for (_ in Iter.range(0, 31)) {
+                    for (_ in Nat.rangeInclusive(0, 31)) {
                         buf.add(0);
                     };
 
@@ -610,7 +621,7 @@ suite(
                     ByteUtils.Buffer.writeLEB128_64(buf, offset, value);
 
                     // Create a slice buffer starting from the offset
-                    let sliceBuf = Buffer.Buffer<Nat8>(10);
+                    let sliceBuf = listBuffer<Nat8>();
                     var j = offset;
                     while (j < buf.size() and buf.get(j) != 0) {
                         sliceBuf.add(buf.get(j));
@@ -631,10 +642,10 @@ suite(
         test(
             "writeSLEB128_64/readSLEB128_64 buffer operations",
             func() {
-                let buf = Buffer.Buffer<Nat8>(32);
+                let buf = listBuffer<Nat8>();
 
                 // Fill buffer with zeros
-                for (_ in Iter.range(0, 31)) {
+                for (_ in Nat.rangeInclusive(0, 31)) {
                     buf.add(0);
                 };
 
@@ -653,13 +664,13 @@ suite(
                     ByteUtils.Buffer.writeSLEB128_64(buf, offset, value);
 
                     // Verify bytes were written correctly
-                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                    for (i in Nat.rangeInclusive(0, expectedBytes.size() - 1)) {
                         assert buf.get(offset + i) == expectedBytes[i];
                     };
 
                     // Create a slice buffer to read from
-                    let sliceBuf = Buffer.Buffer<Nat8>(expectedBytes.size());
-                    for (i in Iter.range(0, expectedBytes.size() - 1)) {
+                    let sliceBuf = listBuffer<Nat8>();
+                    for (i in Nat.rangeInclusive(0, expectedBytes.size() - 1)) {
                         sliceBuf.add(buf.get(offset + i));
                     };
 
@@ -675,11 +686,11 @@ suite(
             func() {
 
                 // Test 100 random values for performance
-                for (i in Iter.range(0, 99)) {
-                    let buf = Buffer.Buffer<Nat8>(32);
+                for (i in Nat.rangeInclusive(0, 99)) {
+                    let buf = listBuffer<Nat8>();
 
                     // Fill buffer with zeros
-                    for (_ in Iter.range(0, 31)) {
+                    for (_ in Nat.rangeInclusive(0, 31)) {
                         buf.add(0);
                     };
 
@@ -694,8 +705,8 @@ suite(
                     ByteUtils.Buffer.writeSLEB128_64(buf, offset, value);
 
                     // Create a slice buffer with the known length
-                    let sliceBuf = Buffer.Buffer<Nat8>(expectedLength);
-                    for (j in Iter.range(0, expectedLength - 1)) {
+                    let sliceBuf = listBuffer<Nat8>();
+                    for (j in Nat.rangeInclusive(0, expectedLength - 1)) {
                         sliceBuf.add(buf.get(offset + j));
                     };
 
@@ -709,10 +720,10 @@ suite(
         test(
             "writeLEB128_64 and writeSLEB128_64 at multiple offsets",
             func() {
-                let buf = Buffer.Buffer<Nat8>(64);
+                let buf = listBuffer<Nat8>();
 
                 // Fill buffer with zeros
-                for (_ in Iter.range(0, 63)) {
+                for (_ in Nat.rangeInclusive(0, 63)) {
                     buf.add(0);
                 };
 
@@ -729,21 +740,21 @@ suite(
 
                 // Create slice buffers and verify each value
                 // LEB value 1 at offset 0 (should be [0xB9, 0x60])
-                let slice1 = Buffer.Buffer<Nat8>(2);
+                let slice1 = listBuffer<Nat8>();
                 slice1.add(buf.get(0));
                 slice1.add(buf.get(1));
                 let restored1 = ByteUtils.Buffer.readLEB128_64(slice1);
                 assert restored1 == lebValue1;
 
                 // LEB value 2 at offset 10 (should be [0x80, 0x01])
-                let slice2 = Buffer.Buffer<Nat8>(2);
+                let slice2 = listBuffer<Nat8>();
                 slice2.add(buf.get(10));
                 slice2.add(buf.get(11));
                 let restored2 = ByteUtils.Buffer.readLEB128_64(slice2);
                 assert restored2 == lebValue2;
 
                 // SLEB value 1 at offset 20 (should be [0xC7, 0x9F, 0x7F])
-                let slice3 = Buffer.Buffer<Nat8>(3);
+                let slice3 = listBuffer<Nat8>();
                 slice3.add(buf.get(20));
                 slice3.add(buf.get(21));
                 slice3.add(buf.get(22));
@@ -751,7 +762,7 @@ suite(
                 assert restored3 == slebValue1;
 
                 // SLEB value 2 at offset 30 (should be [0xC0, 0x00])
-                let slice4 = Buffer.Buffer<Nat8>(2);
+                let slice4 = listBuffer<Nat8>();
                 slice4.add(buf.get(30));
                 slice4.add(buf.get(31));
                 let restored4 = ByteUtils.Buffer.readSLEB128_64(slice4);
@@ -1013,7 +1024,7 @@ suite(
                     ],
                     func(a : Float, b : Float) : Bool {
                         let epsilon : Float = 0.0000001;
-                        Float.equalWithin(a, b, epsilon);
+                        Float.equal(a, b, epsilon);
                     },
                     Float.toText,
                 );

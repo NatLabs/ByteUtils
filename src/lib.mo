@@ -1,21 +1,21 @@
 import Prim "mo:prim";
 
-import Iter "mo:core/Iter";
-import Array "mo:core/Array";
-import List "mo:core/List";
-import Nat8 "mo:core/Nat8";
-import Nat16 "mo:core/Nat16";
-import Nat32 "mo:core/Nat32";
-import Nat64 "mo:core/Nat64";
-import Int8 "mo:core/Int8";
-import Int16 "mo:core/Int16";
-import Int32 "mo:core/Int32";
-import Int64 "mo:core/Int64";
-import Int "mo:core/Int";
-import Nat "mo:core/Nat";
-import Runtime "mo:core/Runtime";
+import Iter "mo:core@2.4/Iter";
+import Array "mo:core@2.4/Array";
+import List "mo:core@2.4/List";
+import Nat8 "mo:core@2.4/Nat8";
+import Nat16 "mo:core@2.4/Nat16";
+import Nat32 "mo:core@2.4/Nat32";
+import Nat64 "mo:core@2.4/Nat64";
+import Int8 "mo:core@2.4/Int8";
+import Int16 "mo:core@2.4/Int16";
+import Int32 "mo:core@2.4/Int32";
+import Int64 "mo:core@2.4/Int64";
+import Int "mo:core@2.4/Int";
+import Nat "mo:core@2.4/Nat";
+import Runtime "mo:core@2.4/Runtime";
 
-import FloatX "mo:xtended-numbers@2.3.0/FloatX";
+import FloatX "mo:xtended-numbers@2.3/FloatX";
 
 module ByteUtils {
     /// An iterator of bytes.

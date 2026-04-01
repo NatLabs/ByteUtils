@@ -12,6 +12,7 @@
 .vessel/
 .mops/
 .wasm/
+mops.lock
 
 # frontend code
 node_modules/
