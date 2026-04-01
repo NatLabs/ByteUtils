@@ -1,19 +1,19 @@
 // @testmode wasi
-import Buffer "mo:base@0.14.13/Buffer";
-import Blob "mo:base@0.14.13/Blob";
-import Text "mo:base@0.14.13/Text";
-import Nat "mo:base@0.14.13/Nat";
-import Nat8 "mo:base@0.14.13/Nat8";
-import Int8 "mo:base@0.14.13/Int8";
-import Iter "mo:base@0.14.13/Iter";
-import Int32 "mo:base@0.14.13/Int32";
-import Int16 "mo:base@0.14.13/Int16";
-import Int64 "mo:base@0.14.13/Int64";
-import Float "mo:base@0.14.13/Float";
-import Nat64 "mo:base@0.14.13/Nat64";
-import Nat16 "mo:base@0.14.13/Nat16";
-import Nat32 "mo:base@0.14.13/Nat32";
-import Bool "mo:base@0.14.13/Bool";
+import List "mo:core@2.4/List";
+import Blob "mo:core@2.4/Blob";
+import Text "mo:core@2.4/Text";
+import Nat "mo:core@2.4/Nat";
+import Nat8 "mo:core@2.4/Nat8";
+import Int8 "mo:core@2.4/Int8";
+import Iter "mo:core@2.4/Iter";
+import Int32 "mo:core@2.4/Int32";
+import Int16 "mo:core@2.4/Int16";
+import Int64 "mo:core@2.4/Int64";
+import Float "mo:core@2.4/Float";
+import Nat64 "mo:core@2.4/Nat64";
+import Nat16 "mo:core@2.4/Nat16";
+import Nat32 "mo:core@2.4/Nat32";
+import Bool "mo:core@2.4/Bool";
 
 import { test; suite } "mo:test";
 import Itertools "mo:itertools/Iter";
@@ -60,7 +60,7 @@ type TestData = {
     text : Text;
 };
 
-let inputs = Buffer.Buffer<TestData>(limit);
+let inputs = List.empty<TestData>();
 
 let sorted_nat8s = BpTree.new<Nat8, Nat>(null);
 let sorted_nat16s = BpTree.new<Nat16, Nat>(null);
@@ -72,7 +72,7 @@ let sorted_int32s = BpTree.new<Int32, Nat>(null);
 let sorted_int64s = BpTree.new<Int64, Nat>(null);
 let sorted_floats = BpTree.new<Float, Nat>(null);
 
-for (i in Iter.range(0, limit - 1)) {
+for (i in Nat.rangeInclusive(0, limit - 1)) {
     let record : TestData = {
         nat8 = fuzz.nat8.random();
         nat16 = fuzz.nat16.random();
@@ -86,7 +86,8 @@ for (i in Iter.range(0, limit - 1)) {
         bool = fuzz.bool.random();
         text = fuzz.text.randomAlphanumeric(fuzz.nat.randomRange(1, 50));
     };
-    inputs.add(record);
+    List.add(inputs, record);
+
 
     ignore BpTree.insert(sorted_nat8s, Cmp.Nat8, record.nat8, i);
     ignore BpTree.insert(sorted_nat16s, Cmp.Nat16, record.nat16, i);
@@ -109,7 +110,7 @@ suite(
 
                 let encoded_nat8s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromNat8(r.nat8));
                     ignore BpTree.insert(encoded_nat8s, Cmp.Blob, encoded, i);
@@ -142,7 +143,7 @@ suite(
 
                 let encoded_nat16s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromNat16(r.nat16));
                     ignore BpTree.insert(encoded_nat16s, Cmp.Blob, encoded, i);
@@ -172,7 +173,7 @@ suite(
             func() {
                 let encoded_nat32s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromNat32(r.nat32));
                     ignore BpTree.insert(encoded_nat32s, Cmp.Blob, encoded, i);
@@ -202,7 +203,7 @@ suite(
             func() {
                 let encoded_nat64s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromNat64(r.nat64));
                     ignore BpTree.insert(encoded_nat64s, Cmp.Blob, encoded, i);
@@ -233,7 +234,7 @@ suite(
                 let encoded_int8s = BpTree.new<Blob, Nat>(null);
 
                 // Test full range of Int8 values
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromInt8(r.int8));
                     ignore BpTree.insert(encoded_int8s, Cmp.Blob, encoded, i);
@@ -271,7 +272,7 @@ suite(
             func() {
                 let encoded_int16s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromInt16(r.int16));
                     ignore BpTree.insert(encoded_int16s, Cmp.Blob, encoded, i);
@@ -284,9 +285,9 @@ suite(
                 );
 
                 // Test boundary values
-                let min_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt16(Int16.minimumValue));
+                let min_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt16(Int16.minValue));
                 let zero_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt16(0));
-                let max_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt16(Int16.maximumValue));
+                let max_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt16(Int16.maxValue));
 
                 assert min_encoded < zero_encoded;
                 assert zero_encoded < max_encoded;
@@ -309,7 +310,7 @@ suite(
             func() {
                 let encoded_int32s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromInt32(r.int32));
                     ignore BpTree.insert(encoded_int32s, Cmp.Blob, encoded, i);
@@ -322,9 +323,9 @@ suite(
                 );
 
                 // Test boundary values
-                let min_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt32(Int32.minimumValue));
+                let min_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt32(Int32.minValue));
                 let zero_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt32(0));
-                let max_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt32(Int32.maximumValue));
+                let max_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt32(Int32.maxValue));
 
                 assert min_encoded < zero_encoded;
                 assert zero_encoded < max_encoded;
@@ -347,7 +348,7 @@ suite(
             func() {
                 let encoded_int64s = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromInt64(r.int64));
                     ignore BpTree.insert(encoded_int64s, Cmp.Blob, encoded, i);
@@ -360,9 +361,9 @@ suite(
                 );
 
                 // Test boundary values
-                let min_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt64(Int64.minimumValue));
+                let min_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt64(Int64.minValue));
                 let zero_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt64(0));
-                let max_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt64(Int64.maximumValue));
+                let max_encoded = Blob.fromArray(ByteUtils.Sorted.fromInt64(Int64.maxValue));
 
                 assert min_encoded < zero_encoded;
                 assert zero_encoded < max_encoded;
@@ -385,7 +386,7 @@ suite(
             func() {
                 let encoded_floats = BpTree.new<Blob, Nat>(null);
 
-                for ((i, r) in Itertools.enumerate(inputs.vals())) {
+                for ((i, r) in Itertools.enumerate(List.values(inputs))) {
 
                     let encoded = Blob.fromArray(ByteUtils.Sorted.fromFloat(r.float));
                     ignore BpTree.insert(encoded_floats, Cmp.Blob, encoded, i);
@@ -416,7 +417,7 @@ suite(
                     func(a : Float, b : Float) : Bool {
                         // For floating-point values, we need to account for small precision differences
                         let epsilon : Float = 0.0000001;
-                        Float.equalWithin(a, b, epsilon);
+                        Float.equal(a, b, epsilon);
                     },
                 );
             },

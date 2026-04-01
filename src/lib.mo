@@ -1,22 +1,21 @@
 import Prim "mo:prim";
 
-import B "mo:base@0.14.13/Buffer";
-import Iter "mo:base@0.14.13/Iter";
-import Array "mo:base@0.14.13/Array";
-import Nat8 "mo:base@0.14.13/Nat8";
-import Nat16 "mo:base@0.14.13/Nat16";
-import Nat32 "mo:base@0.14.13/Nat32";
-import Nat64 "mo:base@0.14.13/Nat64";
-import Int8 "mo:base@0.14.13/Int8";
-import Int16 "mo:base@0.14.13/Int16";
-import Int32 "mo:base@0.14.13/Int32";
-import Int64 "mo:base@0.14.13/Int64";
-import Int "mo:base@0.14.13/Int";
-import Nat "mo:base@0.14.13/Nat";
-import Debug "mo:base@0.14.13/Debug";
-import BInterface "mo:buffer";
+import Iter "mo:core@2.4/Iter";
+import Array "mo:core@2.4/Array";
+import List "mo:core@2.4/List";
+import Nat8 "mo:core@2.4/Nat8";
+import Nat16 "mo:core@2.4/Nat16";
+import Nat32 "mo:core@2.4/Nat32";
+import Nat64 "mo:core@2.4/Nat64";
+import Int8 "mo:core@2.4/Int8";
+import Int16 "mo:core@2.4/Int16";
+import Int32 "mo:core@2.4/Int32";
+import Int64 "mo:core@2.4/Int64";
+import Int "mo:core@2.4/Int";
+import Nat "mo:core@2.4/Nat";
+import Runtime "mo:core@2.4/Runtime";
 
-import FloatX "mo:xtended-numbers@2.0.0/FloatX";
+import FloatX "mo:xtended-numbers@2.3/FloatX";
 
 module ByteUtils {
     /// An iterator of bytes.
@@ -25,7 +24,7 @@ module ByteUtils {
     func to_nat8(bytes : Bytes) : Nat8 {
         switch (bytes.next()) {
             case (?byte) { byte };
-            case (_) { Debug.trap("ByteUtils: out of bounds") };
+            case (_) { Runtime.trap("ByteUtils: out of bounds") };
         };
     };
 
@@ -34,6 +33,20 @@ module ByteUtils {
         put : (Nat, A) -> ();
         get : (Nat) -> A;
         size : () -> Nat;
+    };
+
+    class ListBuffer<A>() {
+        let list = List.empty<A>();
+        public func size() : Nat = List.size(list);
+        public func add(elem : A) = List.add(list, elem);
+        public func get(i : Nat) : A {
+            switch (List.get(list, i)) {
+                case (?elem) elem;
+                case (null) Runtime.trap("ByteUtils: ListBuffer index out of bounds");
+            };
+        };
+        public func put(i : Nat, elem : A) = List.put(list, i, elem);
+        public func toArray() : [A] = List.toArray(list);
     };
 
     public type Functions = module {
@@ -114,7 +127,7 @@ module ByteUtils {
         };
 
         public func toFloat(bytes : Bytes) : Float {
-            let ?fx = FloatX.fromBytes(bytes, #f64, #lsb) else Debug.trap("ByteUtils: failed to decode Float");
+            let ?fx = FloatX.fromBytes(bytes, #f64, #lsb) else Runtime.trap("ByteUtils: failed to decode Float");
             FloatX.toFloat(fx);
         };
 
@@ -158,10 +171,10 @@ module ByteUtils {
 
         public func fromFloat(f : Float) : [Nat8] {
             let fx = FloatX.fromFloat(f, #f64);
-            let buffer = B.Buffer<Nat8>(8);
+            let buffer = ListBuffer<Nat8>();
 
-            FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #lsb);
-            B.toArray(buffer);
+            FloatX.toBytesBuffer({ write = buffer.add }, fx, #lsb);
+            buffer.toArray();
         };
 
     };
@@ -219,7 +232,7 @@ module ByteUtils {
         };
 
         public func toFloat(bytes : Bytes) : Float {
-            let ?fx = FloatX.fromBytes(bytes, #f64, #msb) else Debug.trap("ByteUtils: failed to decode Float");
+            let ?fx = FloatX.fromBytes(bytes, #f64, #msb) else Runtime.trap("ByteUtils: failed to decode Float");
             FloatX.toFloat(fx);
         };
 
@@ -263,10 +276,10 @@ module ByteUtils {
 
         public func fromFloat(f : Float) : [Nat8] {
             let fx = FloatX.fromFloat(f, #f64);
-            let buffer = B.Buffer<Nat8>(8);
+            let buffer = ListBuffer<Nat8>();
 
-            FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #msb);
-            B.toArray(buffer);
+            FloatX.toBytesBuffer({ write = buffer.add }, fx, #msb);
+            buffer.toArray();
         };
 
     };
@@ -327,23 +340,23 @@ module ByteUtils {
         public func fromFloat(f : Float) : [Nat8] {
             // IEEE-754 sortable encoding
             let fx = FloatX.fromFloat(f, #f64);
-            let buffer = B.Buffer<Nat8>(8);
-            FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #msb); // Use big-endian
+            let buffer = ListBuffer<Nat8>();
+            FloatX.toBytesBuffer({ write = buffer.add }, fx, #msb); // Use big-endian
 
-            let bytes = B.toArray(buffer);
+            let bytes = buffer.toArray();
 
             if (f < 0.0) {
                 // For negative numbers, flip all bits
-                Array.tabulate<Nat8>(buffer.size(), func(i : Nat) : Nat8 { ^(bytes.get(i)) });
+                Array.tabulate<Nat8>(buffer.size(), func(i : Nat) : Nat8 { ^(bytes[i]) });
             } else {
                 // For positive numbers, flip only the sign bit
                 Array.tabulate<Nat8>(
                     buffer.size(),
                     func(i : Nat) : Nat8 {
                         if (i == 0) {
-                            return bytes.get(i) ^ 0x80; // Flip sign bit only for first byte
+                            return bytes[i] ^ 0x80; // Flip sign bit only for first byte
                         } else {
-                            return bytes.get(i); // Keep other bytes unchanged
+                            return bytes[i]; // Keep other bytes unchanged
                         };
                     },
                 );
@@ -447,7 +460,7 @@ module ByteUtils {
                 );
             };
 
-            let ?fx = FloatX.fromBytes(decodedBytes.vals(), #f64, #msb) else Debug.trap("ByteUtils: failed to decode Float");
+            let ?fx = FloatX.fromBytes(decodedBytes.vals(), #f64, #msb) else Runtime.trap("ByteUtils: failed to decode Float");
             FloatX.toFloat(fx);
         };
     };
@@ -457,60 +470,60 @@ module ByteUtils {
 
     /// Encodes a `Nat64` into ULEB128 format.
     public func toLEB128_64(n64 : Nat64) : [Nat8] {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         Buffer.addLEB128_64(buffer, n64);
-        B.toArray(buffer);
+        buffer.toArray();
     };
 
     /// Decodes a ULEB128-encoded `Nat64` from a byte iterator.
     /// Traps if end of buffer is reached before value is completely decoded.
     public func fromLEB128_64(bytes : Bytes) : Nat64 {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readLEB128_64(buffer);
     };
 
     /// Encodes a `Nat` into ULEB128 format.
     public func toLEB128(n : Nat) : [Nat8] {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         Buffer.addLEB128_nat(buffer, n);
-        B.toArray(buffer);
+        buffer.toArray();
     };
 
     /// Decodes a ULEB128-encoded `Nat` from a byte iterator.
     /// Traps if end of buffer is reached before value is completely decoded.
     public func fromLEB128(bytes : Bytes) : Nat {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readLEB128_nat(buffer);
     };
 
     /// Encodes an `Int64` into SLEB128 format.
     public func toSLEB128_64(n : Int64) : [Nat8] {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         Buffer.addSLEB128_64(buffer, n);
-        B.toArray(buffer);
+        buffer.toArray();
     };
 
     /// Decodes an SLEB128-encoded `Int64` from a byte iterator.
     /// Traps if end of buffer is reached before value is completely decoded.
     public func fromSLEB128_64(bytes : Bytes) : Int64 {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readSLEB128_64(buffer);
     };
 
     /// Encodes an `Int` into SLEB128 format.
     public func toSLEB128(n : Int) : [Nat8] {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         Buffer.addSLEB128_int(buffer, n);
-        B.toArray(buffer);
+        buffer.toArray();
     };
 
     /// Decodes an SLEB128-encoded `Int` from a byte iterator.
     /// Traps if end of buffer is reached before value is completely decoded.
     public func fromSLEB128(bytes : Bytes) : Int {
-        let buffer = B.Buffer<Nat8>(10);
+        let buffer = ListBuffer<Nat8>();
         for (byte in bytes) { buffer.add(byte) };
         Buffer.readSLEB128_int(buffer);
     };
@@ -572,9 +585,9 @@ module ByteUtils {
                 addNat64(buffer, nat64);
             };
 
-            public func addFloat(buffer : B.Buffer<Nat8>, f : Float) {
+            public func addFloat(buffer : BufferLike<Nat8>, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
-                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #lsb);
+                FloatX.toBytesBuffer({ write = buffer.add }, fx, #lsb);
             };
 
             // Add new write methods (write at specific offset)
@@ -629,11 +642,11 @@ module ByteUtils {
 
             public func writeFloat(buffer : BufferLike<Nat8>, offset : Nat, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
-                let tempBuffer = B.Buffer<Nat8>(8);
-                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(tempBuffer), fx, #lsb);
+                let tempBuffer = ListBuffer<Nat8>();
+                FloatX.toBytesBuffer({ write = tempBuffer.add }, fx, #lsb);
 
                 // Copy from temp buffer to target buffer at offset
-                for (i in Iter.range(0, 7)) {
+                for (i in Nat.range(0, 8)) {
                     buffer.put(offset + i, tempBuffer.get(i));
                 };
             };
@@ -742,9 +755,9 @@ module ByteUtils {
                 addNat64(buffer, nat64);
             };
 
-            public func addFloat(buffer : B.Buffer<Nat8>, f : Float) {
+            public func addFloat(buffer : BufferLike<Nat8>, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
-                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(buffer), fx, #msb);
+                FloatX.toBytesBuffer({ write = buffer.add }, fx, #msb);
             };
 
             // Add new write methods (write at specific offset)
@@ -797,13 +810,13 @@ module ByteUtils {
                 writeNat64(buffer, offset, nat64);
             };
 
-            public func writeFloat(buffer : B.Buffer<Nat8>, offset : Nat, f : Float) {
+            public func writeFloat(buffer : BufferLike<Nat8>, offset : Nat, f : Float) {
                 let fx = FloatX.fromFloat(f, #f64);
-                let tempBuffer = B.Buffer<Nat8>(8);
-                FloatX.toBytesBuffer(BInterface.fromDeprecatedBuffer(tempBuffer), fx, #msb);
+                let tempBuffer = ListBuffer<Nat8>();
+                FloatX.toBytesBuffer({ write = tempBuffer.add }, fx, #msb);
 
                 // Copy from temp buffer to target buffer at offset
-                for (i in Iter.range(0, 7)) {
+                for (i in Nat.range(0, 8)) {
                     buffer.put(offset + i, tempBuffer.get(i));
                 };
             };
@@ -912,63 +925,63 @@ module ByteUtils {
             // Write functions (at specific offset)
             public func writeNat8(buffer : BufferLike<Nat8>, offset : Nat, n : Nat8) {
                 let bytes = ByteUtils.Sorted.fromNat8(n);
-                for (i in Iter.range(0, bytes.size() - 1)) {
+                for (i in Nat.range(0, bytes.size())) {
                     buffer.put(offset + i, bytes[i]);
                 };
             };
 
             public func writeNat16(buffer : BufferLike<Nat8>, offset : Nat, n : Nat16) {
                 let bytes = ByteUtils.Sorted.fromNat16(n);
-                for (i in Iter.range(0, bytes.size() - 1)) {
+                for (i in Nat.range(0, bytes.size())) {
                     buffer.put(offset + i, bytes[i]);
                 };
             };
 
             public func writeNat32(buffer : BufferLike<Nat8>, offset : Nat, n : Nat32) {
                 let bytes = ByteUtils.Sorted.fromNat32(n);
-                for (i in Iter.range(0, bytes.size() - 1)) {
+                for (i in Nat.range(0, bytes.size())) {
                     buffer.put(offset + i, bytes[i]);
                 };
             };
 
             public func writeNat64(buffer : BufferLike<Nat8>, offset : Nat, n : Nat64) {
                 let bytes = ByteUtils.Sorted.fromNat64(n);
-                for (i in Iter.range(0, bytes.size() - 1)) {
+                for (i in Nat.range(0, bytes.size())) {
                     buffer.put(offset + i, bytes[i]);
                 };
             };
 
             public func writeInt8(buffer : BufferLike<Nat8>, offset : Nat, i : Int8) {
                 let bytes = ByteUtils.Sorted.fromInt8(i);
-                for (j in Iter.range(0, bytes.size() - 1)) {
+                for (j in Nat.range(0, bytes.size())) {
                     buffer.put(offset + j, bytes[j]);
                 };
             };
 
             public func writeInt16(buffer : BufferLike<Nat8>, offset : Nat, i : Int16) {
                 let bytes = ByteUtils.Sorted.fromInt16(i);
-                for (j in Iter.range(0, bytes.size() - 1)) {
+                for (j in Nat.range(0, bytes.size())) {
                     buffer.put(offset + j, bytes[j]);
                 };
             };
 
             public func writeInt32(buffer : BufferLike<Nat8>, offset : Nat, i : Int32) {
                 let bytes = ByteUtils.Sorted.fromInt32(i);
-                for (j in Iter.range(0, bytes.size() - 1)) {
+                for (j in Nat.range(0, bytes.size())) {
                     buffer.put(offset + j, bytes[j]);
                 };
             };
 
             public func writeInt64(buffer : BufferLike<Nat8>, offset : Nat, i : Int64) {
                 let bytes = ByteUtils.Sorted.fromInt64(i);
-                for (j in Iter.range(0, bytes.size() - 1)) {
+                for (j in Nat.range(0, bytes.size())) {
                     buffer.put(offset + j, bytes[j]);
                 };
             };
 
-            public func writeFloat(buffer : B.Buffer<Nat8>, offset : Nat, f : Float) {
+            public func writeFloat(buffer : BufferLike<Nat8>, offset : Nat, f : Float) {
                 let bytes = ByteUtils.Sorted.fromFloat(f);
-                for (i in Iter.range(0, bytes.size() - 1)) {
+                for (i in Nat.range(0, bytes.size())) {
                     buffer.put(offset + i, bytes[i]);
                 };
             };
@@ -1111,7 +1124,7 @@ module ByteUtils {
                 // Determine if we need more bytes
                 if (
                     (value == 0 and (byte & 0x40) == 0) or
-                    (is_negative and value == Nat64.fromNat(Int.abs(Int64.toInt(Int64.maximumValue))) and (byte & 0x40) != 0)
+                    (is_negative and value == Nat64.fromNat(Int.abs(Int64.toInt(Int64.maxValue))) and (byte & 0x40) != 0)
                 ) {
                     more := false;
                 } else {
@@ -1154,7 +1167,7 @@ module ByteUtils {
                 // Determine if we need more bytes
                 if (
                     (value == 0 and (byte & 0x40) == 0) or
-                    (is_negative and value == Nat64.fromNat(Int.abs(Int64.toInt(Int64.maximumValue))) and (byte & 0x40) != 0)
+                    (is_negative and value == Nat64.fromNat(Int.abs(Int64.toInt(Int64.maxValue))) and (byte & 0x40) != 0)
                 ) {
                     more := false;
                 } else {
